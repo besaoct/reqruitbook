@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 
 import { SidebarNav } from "@/components/layout/sidebar-nav";
+import { NotificationPopover } from "@/components/layout/notification-popover";
 import type { NavNodeView } from "@/lib/navigation";
 import { CommandPalette } from "@/components/layout/command-palette";
 import { Button } from "@/components/ui/button";
@@ -264,19 +265,8 @@ function Header({
         <span>Careers Portal</span>
       </Link>
 
-      {/* Notifications */}
-      <Link
-        href="/communications"
-        className="relative flex size-8 items-center justify-center rounded-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-        aria-label={`Notifications${unreadCount ? `, ${unreadCount} unread` : ""}`}
-      >
-        <Bell className="size-4" />
-        {unreadCount > 0 ? (
-          <span className="absolute right-0.5 top-0.5 flex min-w-3.75 items-center justify-center rounded-full bg-accent px-1 text-[9px] font-bold leading-3.75 text-accent-foreground">
-            {unreadCount > 99 ? "99+" : unreadCount}
-          </span>
-        ) : null}
-      </Link>
+      {/* Notifications Dialog & Activity Popover */}
+      <NotificationPopover initialUnreadCount={unreadCount} />
 
       {/* User Avatar Menu */}
       <UserMenu user={user} />

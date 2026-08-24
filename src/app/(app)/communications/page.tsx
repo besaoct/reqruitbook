@@ -482,20 +482,31 @@ function CommunicationsContent() {
           <span>Loading communications data...</span>
         </div>
       ) : activeTab === "templates" ? (
-        <div className="space-y-4">
-          {/* Template Filter & Search Toolbar */}
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-            <div className="relative max-w-sm flex-1">
-              <Search className="absolute left-2.5 top-2.5 size-3.5 text-muted-foreground" />
-              <Input
-                placeholder="Search templates by title or trigger..."
-                value={templateSearch}
-                onChange={(e) => setTemplateSearch(e.target.value)}
-                className="pl-8 h-8 text-xs bg-card"
-              />
-            </div>
+        <div className="space-y-3">
+          {/* Row 1: Full Width Template Searchbar */}
+          <div className="relative w-full">
+            <Search className="absolute left-3 top-2.5 size-4 text-muted-foreground" />
+            <Input
+              placeholder="Search all email templates by title, subject line, or trigger event..."
+              value={templateSearch}
+              onChange={(e) => setTemplateSearch(e.target.value)}
+              className="pl-9 pr-9 h-9 text-xs bg-card w-full shadow-2xs"
+            />
+            {templateSearch && (
+              <button
+                type="button"
+                onClick={() => setTemplateSearch("")}
+                className="absolute right-3 top-2.5 text-xs text-muted-foreground hover:text-foreground cursor-pointer"
+                title="Clear search"
+              >
+                ✕
+              </button>
+            )}
+          </div>
 
-            <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1">
+          {/* Row 2: Stage Filter Pills & Counter */}
+          <div className="flex flex-wrap items-center justify-between gap-2 pt-0.5">
+            <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1 flex-wrap">
               {STAGE_FILTERS.map((st) => (
                 <button
                   key={st.id}
@@ -504,7 +515,7 @@ function CommunicationsContent() {
                   className={cn(
                     "px-2.5 py-1 text-[11px] rounded-xs border transition-colors whitespace-nowrap cursor-pointer",
                     selectedStageFilter === st.id
-                      ? "bg-copper/10 text-copper border-copper/40 font-semibold"
+                      ? "bg-copper/15 text-copper border-copper/50 font-semibold shadow-2xs"
                       : "border-border bg-card/60 text-muted-foreground hover:text-foreground hover:bg-muted",
                   )}
                 >
@@ -512,6 +523,10 @@ function CommunicationsContent() {
                 </button>
               ))}
             </div>
+
+            <span className="text-[11px] text-muted-foreground font-medium shrink-0">
+              Showing {filteredTemplates.length} of {templates.length} templates
+            </span>
           </div>
 
           {/* Templates Grid */}

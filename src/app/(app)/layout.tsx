@@ -47,6 +47,12 @@ export default async function AppLayout({
   // Pass dynamic role and permissions to filter navigation
   const navigation = getNavigation(badges, userRole, userPermissions);
 
+  const totalUnreadNotifs =
+    (badges.pendingFeedback || 0) +
+    (badges.screeningCount || 0) +
+    (badges.interviewsToday || 0) +
+    (badges.pendingOffers || 0);
+
   return (
     <AuthProvider user={currentUser}>
       <AppShell
@@ -55,7 +61,7 @@ export default async function AppLayout({
         user={user}
         departments={departments}
         activeDepartmentId="dept_all"
-        unreadCount={badges.pendingFeedback || 0}
+        unreadCount={totalUnreadNotifs}
       >
         {children}
       </AppShell>
