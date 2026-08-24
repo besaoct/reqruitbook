@@ -6,45 +6,72 @@ import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { cn } from "@/lib/utils";
+import { Card } from "@/components/ui/card";
 import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from "@/components/ui/card";
-import {
-  Briefcase,
   Search,
   MapPin,
   Building2,
   ArrowRight,
-  Sparkles,
-  CheckCircle2,
-  Globe,
-  Clock,
   Loader2,
+  RotateCcw,
+  Briefcase,
+  Layers,
+  X,
 } from "lucide-react";
 import { getJobs } from "@/lib/actions/jobs";
-import { getOrganizationSettings } from "@/lib/actions/settings";
+import {
+  getOrganizationSettings,
+  getDepartments,
+  getLocations,
+  getWorkModes,
+  getEmploymentTypes,
+  getExperienceLevels,
+} from "@/lib/actions/settings";
 
 export default function CareersPublicPage() {
   const [search, setSearch] = useState("");
   const [selectedDept, setSelectedDept] = useState("All");
+  const [selectedLocation, setSelectedLocation] = useState("All");
+  const [selectedWorkMode, setSelectedWorkMode] = useState("All");
+  const [selectedEmploymentType, setSelectedEmploymentType] = useState("All");
+  const [selectedExpLevel, setSelectedExpLevel] = useState("All");
+
   const [jobs, setJobs] = useState<any[]>([]);
   const [org, setOrg] = useState<any>(null);
+  const [departmentsList, setDepartmentsList] = useState<any[]>([]);
+  const [locationsList, setLocationsList] = useState<any[]>([]);
+  const [workModesList, setWorkModesList] = useState<any[]>([]);
+  const [employmentTypesList, setEmploymentTypesList] = useState<any[]>([]);
+  const [experienceLevelsList, setExperienceLevelsList] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function load() {
       try {
-        const [jList, orgData] = await Promise.all([
+        const [
+          jList,
+          orgData,
+          depts,
+          locs,
+          wModes,
+          eTypes,
+          expLevels,
+        ] = await Promise.all([
           getJobs({ status: "published" }),
           getOrganizationSettings(),
+          getDepartments(),
+          getLocations(),
+          getWorkModes(),
+          getEmploymentTypes(),
+          getExperienceLevels(),
         ]);
         setJobs(jList);
         setOrg(orgData);
+        setDepartmentsList(depts || []);
+        setLocationsList(locs || []);
+        setWorkModesList(wModes || []);
+        setEmploymentTypesList(eTypes || []);
+        setExperienceLevelsList(expLevels || []);
       } catch (err) {
         console.error(err);
       } finally {
@@ -54,15 +81,89 @@ export default function CareersPublicPage() {
     load();
   }, []);
 
-  const departments = ["All", ...Array.from(new Set(jobs.map((j) => j.departmentName).filter(Boolean)))];
+  // Compute dynamic options combined with master data
+  const deptOptions = Array.from(
+    new Set([
+      ...departmentsList.map((d) => d.name),
+      ...jobs.map((j) => j.departmentName).filter(Boolean),
+    ]),
+  );
+
+  const locationOptions = Array.from(
+    new Set([
+      ...locationsList.map((l) => l.name),
+      ...jobs.map((j) => j.locationName || j.locationText).filter(Boolean),
+    ]),
+  );
+
+  const workModeOptions = workModesList.length > 0
+    ? workModesList
+    : [
+        { slug: "in_office", name: "In Office" },
+        { slug: "hybrid", name: "Hybrid" },
+        { slug: "remote", name: "Remote" },
+        { slug: "flexible", name: "Flexible" },
+      ];
+
+  const employmentTypeOptions = employmentTypesList.length > 0
+    ? employmentTypesList
+    : [
+        { slug: "full_time", name: "Full Time" },
+        { slug: "part_time", name: "Part Time" },
+        { slug: "contract", name: "Contract" },
+        { slug: "internship", name: "Internship" },
+        { slug: "temporary", name: "Temporary" },
+      ];
+
+  const expLevelOptions = experienceLevelsList.length > 0
+    ? experienceLevelsList
+    : [
+        { slug: "entry", name: "Junior / Entry" },
+        { slug: "mid", name: "Mid-Level" },
+        { slug: "senior", name: "Senior" },
+        { slug: "lead", name: "Lead / Principal" },
+        { slug: "director", name: "Director" },
+        { slug: "executive", name: "Executive" },
+      ];
+
+  const hasActiveFilters =
+    Boolean(search.trim()) ||
+    selectedDept !== "All" ||
+    selectedLocation !== "All" ||
+    selectedWorkMode !== "All" ||
+    selectedEmploymentType !== "All" ||
+    selectedExpLevel !== "All";
+
+  const resetFilters = () => {
+    setSearch("");
+    setSelectedDept("All");
+    setSelectedLocation("All");
+    setSelectedWorkMode("All");
+    setSelectedEmploymentType("All");
+    setSelectedExpLevel("All");
+  };
 
   const filtered = jobs.filter((j) => {
+    const q = search.toLowerCase().trim();
     const matchSearch =
-      j.title.toLowerCase().includes(search.toLowerCase()) ||
-      (j.departmentName && j.departmentName.toLowerCase().includes(search.toLowerCase())) ||
-      (j.locationText && j.locationText.toLowerCase().includes(search.toLowerCase()));
+      !q ||
+      j.title.toLowerCase().includes(q) ||
+      (j.departmentName && j.departmentName.toLowerCase().includes(q)) ||
+      (j.locationName && j.locationName.toLowerCase().includes(q)) ||
+      (j.locationText && j.locationText.toLowerCase().includes(q)) ||
+      (Array.isArray(j.skills) && j.skills.some((s: string) => s.toLowerCase().includes(q)));
+
     const matchDept = selectedDept === "All" || j.departmentName === selectedDept;
-    return matchSearch && matchDept;
+    const matchLoc =
+      selectedLocation === "All" ||
+      j.locationName === selectedLocation ||
+      j.locationText === selectedLocation;
+    const matchWorkMode = selectedWorkMode === "All" || j.workMode === selectedWorkMode;
+    const matchEmpType =
+      selectedEmploymentType === "All" || j.employmentType === selectedEmploymentType;
+    const matchExp = selectedExpLevel === "All" || j.experienceLevel === selectedExpLevel;
+
+    return matchSearch && matchDept && matchLoc && matchWorkMode && matchEmpType && matchExp;
   });
 
   return (
@@ -83,7 +184,8 @@ export default function CareersPublicPage() {
                 {org?.name || "My Organisation"}
               </span>
               <span className="text-[10px] text-muted-foreground uppercase tracking-widest">
-                Careers &amp; Opportunities               </span>
+                Careers &amp; Opportunities
+              </span>
             </div>
           </div>
         </div>
@@ -107,47 +209,173 @@ export default function CareersPublicPage() {
         </div>
       </section>
 
-      {/* Job Search & Filter */}
+      {/* Job Search & Filter Options Bar */}
       <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 flex-1 w-full space-y-6">
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-          <div className="relative flex-1 max-w-md">
-            <Search className="absolute left-3 top-2.5 size-4 text-muted-foreground" />
-            <Input
-              placeholder="Search by role, keyword, or location..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-9 h-9 text-xs bg-card"
-            />
+        <div className="p-3.5 sm:p-4 rounded-xs border border-border bg-card/60 space-y-3">
+          <div className="flex flex-col lg:flex-row items-stretch lg:items-center gap-2.5">
+            {/* Search Input */}
+            <div className="relative flex-1 min-w-[220px]">
+              <Search className="absolute left-3 top-2.5 size-4 text-muted-foreground" />
+              <Input
+                placeholder="Search by role, keyword, or skill..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="pl-9 h-9 text-xs bg-card"
+              />
+              {search && (
+                <button
+                  type="button"
+                  onClick={() => setSearch("")}
+                  className="absolute right-2.5 top-2.5 text-muted-foreground hover:text-foreground text-xs cursor-pointer"
+                >
+                  <X className="size-3.5" />
+                </button>
+              )}
+            </div>
+
+            {/* Filter Fields right to searchbar */}
+            <div className="flex flex-wrap items-center gap-2">
+              {/* Department Filter */}
+              <select
+                value={selectedDept}
+                onChange={(e) => setSelectedDept(e.target.value)}
+                className="h-9 px-2.5 text-xs rounded-xs border border-border bg-card text-foreground focus:outline-none focus:ring-1 focus:ring-copper cursor-pointer min-w-[130px]"
+              >
+                <option value="All">All Departments</option>
+                {deptOptions.map((dept) => (
+                  <option key={dept} value={dept}>
+                    {dept}
+                  </option>
+                ))}
+              </select>
+
+              {/* Location Filter */}
+              <select
+                value={selectedLocation}
+                onChange={(e) => setSelectedLocation(e.target.value)}
+                className="h-9 px-2.5 text-xs rounded-xs border border-border bg-card text-foreground focus:outline-none focus:ring-1 focus:ring-copper cursor-pointer min-w-[125px]"
+              >
+                <option value="All">All Locations</option>
+                {locationOptions.map((loc) => (
+                  <option key={loc} value={loc}>
+                    {loc}
+                  </option>
+                ))}
+              </select>
+
+              {/* Work Mode Filter */}
+              <select
+                value={selectedWorkMode}
+                onChange={(e) => setSelectedWorkMode(e.target.value)}
+                className="h-9 px-2.5 text-xs rounded-xs border border-border bg-card text-foreground focus:outline-none focus:ring-1 focus:ring-copper cursor-pointer min-w-[125px]"
+              >
+                <option value="All">All Work Modes</option>
+                {workModeOptions.map((wm) => (
+                  <option key={wm.slug || wm.id} value={wm.slug || wm.name.toLowerCase().replace(/ /g, "_")}>
+                    {wm.name}
+                  </option>
+                ))}
+              </select>
+
+              {/* Employment Type Filter */}
+              <select
+                value={selectedEmploymentType}
+                onChange={(e) => setSelectedEmploymentType(e.target.value)}
+                className="h-9 px-2.5 text-xs rounded-xs border border-border bg-card text-foreground focus:outline-none focus:ring-1 focus:ring-copper cursor-pointer min-w-[125px]"
+              >
+                <option value="All">All Job Types</option>
+                {employmentTypeOptions.map((et) => (
+                  <option key={et.slug || et.id} value={et.slug || et.name.toLowerCase().replace(/ /g, "_")}>
+                    {et.name}
+                  </option>
+                ))}
+              </select>
+
+              {/* Experience Level Filter */}
+              <select
+                value={selectedExpLevel}
+                onChange={(e) => setSelectedExpLevel(e.target.value)}
+                className="h-9 px-2.5 text-xs rounded-xs border border-border bg-card text-foreground focus:outline-none focus:ring-1 focus:ring-copper cursor-pointer min-w-[125px]"
+              >
+                <option value="All">All Experience</option>
+                {expLevelOptions.map((exp) => (
+                  <option key={exp.slug || exp.id} value={exp.slug || exp.name.toLowerCase().replace(/ /g, "_")}>
+                    {exp.name}
+                  </option>
+                ))}
+              </select>
+
+              {/* Reset Filters Button */}
+              {hasActiveFilters && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="xs"
+                  onClick={resetFilters}
+                  className="h-9 text-xs text-muted-foreground hover:text-foreground gap-1 px-2.5 cursor-pointer"
+                  title="Reset all search & filter options"
+                >
+                  <RotateCcw className="size-3 text-copper" />
+                  <span>Reset</span>
+                </Button>
+              )}
+            </div>
           </div>
 
-          <div className="flex items-center gap-4 border-b border-border w-fit overflow-x-auto">
-            {departments.map((dept) => (
-              <button
-                key={dept}
-                type="button"
-                onClick={() => setSelectedDept(dept)}
-                className={cn(
-                  "text-xs py-2 px-1 font-medium transition-all border-b-2 -mb-px whitespace-nowrap",
-                  selectedDept === dept
-                    ? "border-copper text-foreground font-semibold"
-                    : "border-transparent text-muted-foreground hover:text-foreground hover:border-border/60",
-                )}
-              >
-                {dept}
-              </button>
-            ))}
+          {/* Active Filter Chips & Summary */}
+          <div className="flex items-center justify-between text-xs text-muted-foreground pt-1 flex-wrap gap-2 border-t border-border/50">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span>
+                Showing <strong className="text-foreground">{filtered.length}</strong> of {jobs.length} open roles
+              </span>
+              {selectedDept !== "All" && (
+                <Badge variant="outline" className="text-[10px] bg-card text-copper border-copper/30 gap-1 pr-1">
+                  <span>{selectedDept}</span>
+                  <button type="button" onClick={() => setSelectedDept("All")} className="hover:text-foreground cursor-pointer">×</button>
+                </Badge>
+              )}
+              {selectedLocation !== "All" && (
+                <Badge variant="outline" className="text-[10px] bg-card text-copper border-copper/30 gap-1 pr-1">
+                  <span>{selectedLocation}</span>
+                  <button type="button" onClick={() => setSelectedLocation("All")} className="hover:text-foreground cursor-pointer">×</button>
+                </Badge>
+              )}
+              {selectedWorkMode !== "All" && (
+                <Badge variant="outline" className="text-[10px] bg-card text-copper border-copper/30 gap-1 pr-1">
+                  <span className="capitalize">{selectedWorkMode.replace(/_/g, " ")}</span>
+                  <button type="button" onClick={() => setSelectedWorkMode("All")} className="hover:text-foreground cursor-pointer">×</button>
+                </Badge>
+              )}
+              {selectedEmploymentType !== "All" && (
+                <Badge variant="outline" className="text-[10px] bg-card text-copper border-copper/30 gap-1 pr-1">
+                  <span className="capitalize">{selectedEmploymentType.replace(/_/g, " ")}</span>
+                  <button type="button" onClick={() => setSelectedEmploymentType("All")} className="hover:text-foreground cursor-pointer">×</button>
+                </Badge>
+              )}
+              {selectedExpLevel !== "All" && (
+                <Badge variant="outline" className="text-[10px] bg-card text-copper border-copper/30 gap-1 pr-1">
+                  <span className="capitalize">{selectedExpLevel.replace(/_/g, " ")} Level</span>
+                  <button type="button" onClick={() => setSelectedExpLevel("All")} className="hover:text-foreground cursor-pointer">×</button>
+                </Badge>
+              )}
+            </div>
           </div>
         </div>
 
-        {/* Job Requisitions List */}
+        {/* Job Requisitions Grid */}
         {loading ? (
           <div className="p-16 text-center text-xs text-muted-foreground flex items-center justify-center gap-2">
             <Loader2 className="size-4 animate-spin text-copper" />
             <span>Loading career openings...</span>
           </div>
         ) : filtered.length === 0 ? (
-          <div className="p-12 text-center text-xs text-muted-foreground border border-dashed border-border rounded-xs">
-            No open requisitions match your search criteria.
+          <div className="p-12 text-center text-xs text-muted-foreground border border-dashed border-border rounded-xs space-y-2">
+            <p className="font-medium text-foreground">No open positions match your selected filter criteria.</p>
+            {hasActiveFilters && (
+              <Button type="button" size="xs" variant="outline" onClick={resetFilters} className="text-xs">
+                Clear Filters
+              </Button>
+            )}
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
