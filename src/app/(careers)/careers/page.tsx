@@ -217,7 +217,7 @@ export default function CareersPublicPage() {
             <div className="relative flex-1 min-w-[220px]">
               <Search className="absolute left-3 top-2.5 size-4 text-muted-foreground" />
               <Input
-                placeholder="Search by role, keyword, or skill..."
+                placeholder="Search jobs..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="pl-9 h-9 text-xs bg-card"

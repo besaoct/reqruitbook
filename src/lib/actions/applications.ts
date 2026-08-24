@@ -49,12 +49,22 @@ export async function getApplications(params?: {
         candidateName: candidates.fullName,
         candidateEmail: candidates.email,
         candidatePhone: candidates.phone,
+        candidateCity: candidates.city,
         currentDesignation: candidates.currentDesignation,
         currentCompany: candidates.currentCompany,
         experienceYears: candidates.totalExperienceYears,
+        totalExperienceText: candidates.totalExperienceText,
+        expectedSalary: candidates.expectedSalary,
+        expectedSalaryText: candidates.expectedSalaryText,
+        noticePeriodDays: candidates.noticePeriodDays,
+        noticePeriodText: candidates.noticePeriodText,
         rating: candidates.rating,
         skills: candidates.skills,
         resumeUrl: candidates.resumeUrl,
+        resumeFileName: candidates.resumeFileName,
+        portfolioUrl: candidates.portfolioUrl,
+        linkedInUrl: candidates.linkedInUrl,
+        coverLetter: candidates.coverLetter,
       })
       .from(jobApplications)
       .leftJoin(jobOpenings, eq(jobApplications.jobId, jobOpenings.id))
@@ -132,10 +142,14 @@ export async function submitApplicationFromPortal(data: {
   currentDesignation?: string;
   currentCompany?: string;
   totalExperienceYears?: number;
+  totalExperienceText?: string;
   expectedSalary?: number;
+  expectedSalaryText?: string;
   noticePeriodDays?: number;
+  noticePeriodText?: string;
   skills?: string[];
   resumeUrl?: string;
+  resumeFileName?: string;
   portfolioUrl?: string;
   linkedInUrl?: string;
   coverLetter?: string;
@@ -145,7 +159,7 @@ export async function submitApplicationFromPortal(data: {
   const existingCandidate = await db
     .select({ id: candidates.id })
     .from(candidates)
-    .where(eq(candidates.email, data.email))
+    .where(eq(candidates.email, data.email.toLowerCase().trim()))
     .limit(1);
 
   let candidateId = existingCandidate[0]?.id;
@@ -155,26 +169,56 @@ export async function submitApplicationFromPortal(data: {
     await db.insert(candidates).values({
       id: candidateId,
       orgId: "org_myorganisation",
-      fullName: data.fullName,
-      email: data.email,
+      fullName: data.fullName.trim(),
+      email: data.email.toLowerCase().trim(),
       phone: data.phone || null,
       city: data.city || "San Francisco",
       country: data.country || "United States",
       currentDesignation: data.currentDesignation || "Applicant",
-      currentCompany: data.currentCompany || "Previous Employer",
-      totalExperienceYears: data.totalExperienceYears || 3,
-      expectedSalary: data.expectedSalary || 120000,
+      currentCompany: data.currentCompany || null,
+      totalExperienceYears: data.totalExperienceYears || 0,
+      totalExperienceText: data.totalExperienceText || (data.totalExperienceYears ? `${data.totalExperienceYears} Years` : null),
+      expectedSalary: data.expectedSalary || 0,
+      expectedSalaryText: data.expectedSalaryText || (data.expectedSalary ? `$${data.expectedSalary.toLocaleString()}` : null),
       noticePeriodDays: data.noticePeriodDays || 30,
+      noticePeriodText: data.noticePeriodText || (data.noticePeriodDays ? `${data.noticePeriodDays} Days` : null),
       rating: "4.8",
       skills: data.skills || ["Communication", "Problem Solving"],
-      resumeUrl: data.resumeUrl || "https://example.com/resume.pdf",
+      resumeUrl: data.resumeUrl || null,
+      resumeFileName: data.resumeFileName || null,
       portfolioUrl: data.portfolioUrl || null,
       linkedInUrl: data.linkedInUrl || null,
+      coverLetter: data.coverLetter || null,
       notes: data.coverLetter ? `Cover Letter: ${data.coverLetter}` : "Applied via Careers Portal.",
       inTalentPool: true,
       createdAt: new Date(),
       updatedAt: new Date(),
     });
+  } else {
+    // Update existing candidate with latest contact and resume information
+    await db
+      .update(candidates)
+      .set({
+        fullName: data.fullName.trim(),
+        phone: data.phone || undefined,
+        city: data.city || undefined,
+        currentDesignation: data.currentDesignation || undefined,
+        currentCompany: data.currentCompany || undefined,
+        totalExperienceYears: data.totalExperienceYears || undefined,
+        totalExperienceText: data.totalExperienceText || undefined,
+        expectedSalary: data.expectedSalary || undefined,
+        expectedSalaryText: data.expectedSalaryText || undefined,
+        noticePeriodDays: data.noticePeriodDays || undefined,
+        noticePeriodText: data.noticePeriodText || undefined,
+        skills: data.skills && data.skills.length > 0 ? data.skills : undefined,
+        resumeUrl: data.resumeUrl || undefined,
+        resumeFileName: data.resumeFileName || undefined,
+        portfolioUrl: data.portfolioUrl || undefined,
+        linkedInUrl: data.linkedInUrl || undefined,
+        coverLetter: data.coverLetter || undefined,
+        updatedAt: new Date(),
+      })
+      .where(eq(candidates.id, candidateId));
   }
 
   // Check if already applied to this job
@@ -208,6 +252,7 @@ export async function submitApplicationFromPortal(data: {
   });
 
   revalidatePath("/applications");
+  revalidatePath("/candidates");
   revalidatePath("/dashboard");
 
   return { success: true, id: appId, candidateId };

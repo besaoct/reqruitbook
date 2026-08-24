@@ -38,6 +38,11 @@ import {
   Building,
   Briefcase,
   Award,
+  Linkedin,
+  Github,
+  ExternalLink,
+  Download,
+  Globe,
 } from "lucide-react";
 import {
   Dialog,
@@ -88,8 +93,12 @@ function CandidatesContent() {
   const [editEmail, setEditEmail] = useState("");
   const [editRole, setEditRole] = useState("");
   const [editCompany, setEditCompany] = useState("");
-  const [editExp, setEditExp] = useState(3);
-  const [editSalary, setEditSalary] = useState(120000);
+  const [editExp, setEditExp] = useState<string>("4 Years");
+  const [editSalary, setEditSalary] = useState<string>("$140,000 / year");
+  const [editNotice, setEditNotice] = useState<string>("30 Days / Immediate");
+  const [editLinkedIn, setEditLinkedIn] = useState<string>("");
+  const [editPortfolio, setEditPortfolio] = useState<string>("");
+  const [editResume, setEditResume] = useState<string>("");
   const [isSaving, setIsSaving] = useState(false);
 
   const loadCandidates = async () => {
@@ -119,8 +128,13 @@ function CandidatesContent() {
 
   const handleTabChange = (newTab: string) => {
     setTab(newTab);
-    const targetUrl = newTab === "all" ? "/candidates" : `/candidates?tab=${newTab}`;
-    router.replace(targetUrl);
+    const params = new URLSearchParams(window.location.search);
+    if (newTab === "all") {
+      params.delete("tab");
+    } else {
+      params.set("tab", newTab);
+    }
+    router.push(`/candidates?${params.toString()}`);
   };
 
   const handleViewDetails = async (id: string) => {
@@ -150,25 +164,40 @@ function CandidatesContent() {
 
   const handleOpenEdit = (cand: any) => {
     setEditingCandidate(cand);
-    setEditName(cand.fullName);
-    setEditEmail(cand.email);
+    setEditName(cand.fullName || "");
+    setEditEmail(cand.email || "");
     setEditRole(cand.currentDesignation || "");
     setEditCompany(cand.currentCompany || "");
-    setEditExp(cand.totalExperienceYears || 3);
-    setEditSalary(cand.expectedSalary || 120000);
+    setEditExp(cand.totalExperienceText || (cand.totalExperienceYears ? `${cand.totalExperienceYears} Years` : "4 Years"));
+    setEditSalary(cand.expectedSalaryText || (cand.expectedSalary ? `$${cand.expectedSalary.toLocaleString()} / year` : "$140,000 / year"));
+    setEditNotice(cand.noticePeriodText || (cand.noticePeriodDays ? `${cand.noticePeriodDays} Days` : "30 Days / Immediate"));
+    setEditLinkedIn(cand.linkedInUrl || "");
+    setEditPortfolio(cand.portfolioUrl || "");
+    setEditResume(cand.resumeUrl || "");
   };
 
   const handleSaveEdit = async () => {
     if (!editingCandidate) return;
     setIsSaving(true);
     try {
+      const expNumeric = parseInt(String(editExp).replace(/[^0-9]/g, "")) || 0;
+      const salaryNumeric = parseInt(String(editSalary).replace(/[^0-9]/g, "")) || 0;
+      const noticeNumeric = parseInt(String(editNotice).replace(/[^0-9]/g, "")) || 30;
+
       await updateCandidate(editingCandidate.id, {
-        fullName: editName,
-        email: editEmail,
-        currentDesignation: editRole,
-        currentCompany: editCompany,
-        totalExperienceYears: Number(editExp),
-        expectedSalary: Number(editSalary),
+        fullName: editName.trim(),
+        email: editEmail.trim(),
+        currentDesignation: editRole.trim(),
+        currentCompany: editCompany.trim(),
+        totalExperienceYears: expNumeric,
+        totalExperienceText: editExp.trim(),
+        expectedSalary: salaryNumeric,
+        expectedSalaryText: editSalary.trim(),
+        noticePeriodDays: noticeNumeric,
+        noticePeriodText: editNotice.trim(),
+        linkedInUrl: editLinkedIn.trim() || undefined,
+        portfolioUrl: editPortfolio.trim() || undefined,
+        resumeUrl: editResume.trim() || undefined,
       });
       toast.success("Candidate updated successfully!");
       setEditingCandidate(null);
@@ -477,7 +506,7 @@ function CandidatesContent() {
       <Dialog open={!!selectedCandidate} onOpenChange={(open) => !open && setSelectedCandidate(null)}>
         <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
                 <DialogTitle className="text-lg font-semibold flex items-center gap-2">
                   <span>{selectedCandidate?.fullName}</span>
@@ -486,8 +515,51 @@ function CandidatesContent() {
                   </Badge>
                 </DialogTitle>
                 <div className="text-xs text-muted-foreground mt-0.5">
-                  {selectedCandidate?.currentDesignation} • {selectedCandidate?.currentCompany}
+                  {selectedCandidate?.currentDesignation || "Applicant"} • {selectedCandidate?.currentCompany || "Previous Employer"}
                 </div>
+              </div>
+
+              {/* Action Links: Resume, LinkedIn, GitHub */}
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {selectedCandidate?.resumeUrl && (
+                  <a
+                    href={selectedCandidate.resumeUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <Button size="xs" variant="outline" className="h-7 text-xs gap-1.5 border-copper/30 text-copper hover:bg-copper/10">
+                      <FileText className="size-3.5" />
+                      <span>{selectedCandidate.resumeFileName || "View Resume / CV"}</span>
+                      <ExternalLink className="size-3 opacity-60" />
+                    </Button>
+                  </a>
+                )}
+                {selectedCandidate?.linkedInUrl && (
+                  <a
+                    href={selectedCandidate.linkedInUrl.startsWith("http") ? selectedCandidate.linkedInUrl : `https://${selectedCandidate.linkedInUrl}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <Button size="xs" variant="outline" className="h-7 text-xs gap-1 border-border hover:bg-muted/40">
+                      <Linkedin className="size-3.5 text-[#0A66C2]" />
+                      <span>LinkedIn</span>
+                      <ExternalLink className="size-3 opacity-60" />
+                    </Button>
+                  </a>
+                )}
+                {selectedCandidate?.portfolioUrl && (
+                  <a
+                    href={selectedCandidate.portfolioUrl.startsWith("http") ? selectedCandidate.portfolioUrl : `https://${selectedCandidate.portfolioUrl}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <Button size="xs" variant="outline" className="h-7 text-xs gap-1 border-border hover:bg-muted/40">
+                      <Github className="size-3.5 text-foreground" />
+                      <span>Portfolio / GitHub</span>
+                      <ExternalLink className="size-3 opacity-60" />
+                    </Button>
+                  </a>
+                )}
               </div>
             </div>
           </DialogHeader>
@@ -507,13 +579,33 @@ function CandidatesContent() {
                 <div>
                   <div className="text-[10px] text-muted-foreground">Expected Comp</div>
                   <div className="font-medium text-foreground">
-                    ${(selectedCandidate.expectedSalary || 0).toLocaleString()}
+                    {selectedCandidate.expectedSalaryText || (selectedCandidate.expectedSalary ? `$${selectedCandidate.expectedSalary.toLocaleString()}` : "—")}
                   </div>
                 </div>
                 <div>
                   <div className="text-[10px] text-muted-foreground">Notice Period</div>
                   <div className="font-medium text-foreground">
-                    {selectedCandidate.noticePeriodDays || 30} days
+                    {selectedCandidate.noticePeriodText || (selectedCandidate.noticePeriodDays ? `${selectedCandidate.noticePeriodDays} days` : "30 days")}
+                  </div>
+                </div>
+              </div>
+
+              {/* Professional Background */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 p-3 bg-card rounded-xs border border-border">
+                <div>
+                  <div className="text-[10px] text-muted-foreground">Current Company</div>
+                  <div className="font-medium text-foreground">{selectedCandidate.currentCompany || "—"}</div>
+                </div>
+                <div>
+                  <div className="text-[10px] text-muted-foreground">Total Experience</div>
+                  <div className="font-medium text-foreground">
+                    {selectedCandidate.totalExperienceText || (selectedCandidate.totalExperienceYears ? `${selectedCandidate.totalExperienceYears} yrs` : "—")}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-[10px] text-muted-foreground">Location</div>
+                  <div className="font-medium text-foreground">
+                    {selectedCandidate.city || "San Francisco"}{selectedCandidate.country ? `, ${selectedCandidate.country}` : ""}
                   </div>
                 </div>
               </div>
@@ -529,6 +621,16 @@ function CandidatesContent() {
                   ))}
                 </div>
               </div>
+
+              {/* Cover Letter / Introduction Note */}
+              {(selectedCandidate.coverLetter || selectedCandidate.notes) && (
+                <div className="space-y-1.5 p-3 rounded-xs border border-border bg-muted/20">
+                  <div className="font-semibold text-foreground text-xs">Introduction Note / Cover Letter</div>
+                  <p className="text-xs text-muted-foreground whitespace-pre-wrap leading-relaxed">
+                    {selectedCandidate.coverLetter || selectedCandidate.notes}
+                  </p>
+                </div>
+              )}
 
               {/* Work History */}
               {selectedCandidate.experienceHistory?.length > 0 && (
@@ -562,27 +664,30 @@ function CandidatesContent() {
 
       {/* Edit Candidate Modal */}
       <Dialog open={!!editingCandidate} onOpenChange={(open) => !open && setEditingCandidate(null)}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="text-base font-semibold">Edit Candidate</DialogTitle>
+            <DialogTitle className="text-base font-semibold">Edit Candidate Profile</DialogTitle>
           </DialogHeader>
           <div className="space-y-3 py-2 text-xs">
-            <div className="space-y-1">
-              <label className="field-label">Full Name</label>
-              <Input
-                value={editName}
-                onChange={(e) => setEditName(e.target.value)}
-                className="h-8 text-xs"
-              />
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1">
+                <label className="field-label">Full Name</label>
+                <Input
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  className="h-8 text-xs"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="field-label">Email</label>
+                <Input
+                  value={editEmail}
+                  onChange={(e) => setEditEmail(e.target.value)}
+                  className="h-8 text-xs"
+                />
+              </div>
             </div>
-            <div className="space-y-1">
-              <label className="field-label">Email</label>
-              <Input
-                value={editEmail}
-                onChange={(e) => setEditEmail(e.target.value)}
-                className="h-8 text-xs"
-              />
-            </div>
+
             <div className="grid grid-cols-2 gap-2">
               <div className="space-y-1">
                 <label className="field-label">Current Role</label>
@@ -590,6 +695,7 @@ function CandidatesContent() {
                   value={editRole}
                   onChange={(e) => setEditRole(e.target.value)}
                   className="h-8 text-xs"
+                  placeholder="e.g. Senior Backend Engineer"
                 />
               </div>
               <div className="space-y-1">
@@ -598,28 +704,69 @@ function CandidatesContent() {
                   value={editCompany}
                   onChange={(e) => setEditCompany(e.target.value)}
                   className="h-8 text-xs"
+                  placeholder="e.g. Acme Technologies"
                 />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-2">
+
+            <div className="grid grid-cols-3 gap-2">
               <div className="space-y-1">
-                <label className="field-label">Total Exp (Years)</label>
+                <label className="field-label">Total Exp</label>
                 <Input
-                  type="number"
                   value={editExp}
-                  onChange={(e) => setEditExp(Number(e.target.value))}
+                  onChange={(e) => setEditExp(e.target.value)}
                   className="h-8 text-xs"
+                  placeholder="e.g. 4 Years"
                 />
               </div>
               <div className="space-y-1">
-                <label className="field-label">Expected Salary ($)</label>
+                <label className="field-label">Expected Salary</label>
                 <Input
-                  type="number"
                   value={editSalary}
-                  onChange={(e) => setEditSalary(Number(e.target.value))}
+                  onChange={(e) => setEditSalary(e.target.value)}
                   className="h-8 text-xs"
+                  placeholder="e.g. ₹20L / year"
                 />
               </div>
+              <div className="space-y-1">
+                <label className="field-label">Notice Period</label>
+                <Input
+                  value={editNotice}
+                  onChange={(e) => setEditNotice(e.target.value)}
+                  className="h-8 text-xs"
+                  placeholder="e.g. 30 Days"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <label className="field-label">LinkedIn Profile URL</label>
+              <Input
+                value={editLinkedIn}
+                onChange={(e) => setEditLinkedIn(e.target.value)}
+                className="h-8 text-xs"
+                placeholder="https://linkedin.com/in/rahul"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="field-label">Portfolio / GitHub URL</label>
+              <Input
+                value={editPortfolio}
+                onChange={(e) => setEditPortfolio(e.target.value)}
+                className="h-8 text-xs"
+                placeholder="https://github.com/rahulsharma"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="field-label">Resume / CV Document URL</label>
+              <Input
+                value={editResume}
+                onChange={(e) => setEditResume(e.target.value)}
+                className="h-8 text-xs"
+                placeholder="https://drive.google.com/file/... or /uploads/resumes/..."
+              />
             </div>
           </div>
           <DialogFooter>
@@ -648,7 +795,10 @@ export default function CandidatesPage() {
     <Suspense
       fallback={
         <div className="page flex items-center justify-center p-12">
-          <Loader2 className="size-6 animate-spin text-copper" />
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <Loader2 className="size-4 animate-spin text-copper" />
+            <span>Loading candidates directory...</span>
+          </div>
         </div>
       }
     >

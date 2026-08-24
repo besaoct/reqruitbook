@@ -40,13 +40,18 @@ export async function getCandidates(params?: {
         currentDesignation: candidates.currentDesignation,
         currentCompany: candidates.currentCompany,
         totalExperienceYears: candidates.totalExperienceYears,
+        totalExperienceText: candidates.totalExperienceText,
         expectedSalary: candidates.expectedSalary,
+        expectedSalaryText: candidates.expectedSalaryText,
         noticePeriodDays: candidates.noticePeriodDays,
+        noticePeriodText: candidates.noticePeriodText,
         rating: candidates.rating,
         skills: candidates.skills,
         resumeUrl: candidates.resumeUrl,
+        resumeFileName: candidates.resumeFileName,
         portfolioUrl: candidates.portfolioUrl,
         linkedInUrl: candidates.linkedInUrl,
+        coverLetter: candidates.coverLetter,
         notes: candidates.notes,
         inTalentPool: candidates.inTalentPool,
         createdAt: candidates.createdAt,
@@ -130,12 +135,17 @@ export async function createCandidate(data: {
   currentDesignation?: string;
   currentCompany?: string;
   totalExperienceYears?: number;
+  totalExperienceText?: string;
   expectedSalary?: number;
+  expectedSalaryText?: string;
   noticePeriodDays?: number;
+  noticePeriodText?: string;
   skills?: string[];
   resumeUrl?: string;
+  resumeFileName?: string;
   portfolioUrl?: string;
   linkedInUrl?: string;
+  coverLetter?: string;
   notes?: string;
   inTalentPool?: boolean;
 }) {
@@ -156,13 +166,18 @@ export async function createCandidate(data: {
     currentDesignation: data.currentDesignation || "Software Engineer",
     currentCompany: data.currentCompany || "Technology Corp",
     totalExperienceYears: data.totalExperienceYears || 4,
+    totalExperienceText: data.totalExperienceText || `${data.totalExperienceYears || 4} Years`,
     expectedSalary: data.expectedSalary || 140000,
+    expectedSalaryText: data.expectedSalaryText || (data.expectedSalary ? `$${data.expectedSalary.toLocaleString()}` : "$140,000 / year"),
     noticePeriodDays: data.noticePeriodDays || 30,
+    noticePeriodText: data.noticePeriodText || `${data.noticePeriodDays || 30} Days`,
     rating: "4.8",
     skills: data.skills || ["React", "TypeScript", "Node.js"],
-    resumeUrl: data.resumeUrl || "https://example.com/resume.pdf",
+    resumeUrl: data.resumeUrl || null,
+    resumeFileName: data.resumeFileName || null,
     portfolioUrl: data.portfolioUrl || null,
     linkedInUrl: data.linkedInUrl || null,
+    coverLetter: data.coverLetter || null,
     notes: data.notes || "Sourced candidate profile.",
     inTalentPool: data.inTalentPool ?? true,
     createdAt: new Date(),
@@ -186,13 +201,18 @@ export async function updateCandidate(
     currentDesignation: string;
     currentCompany: string;
     totalExperienceYears: number;
+    totalExperienceText: string;
     expectedSalary: number;
+    expectedSalaryText: string;
     noticePeriodDays: number;
+    noticePeriodText: string;
     rating: string;
     skills: string[];
     resumeUrl: string;
+    resumeFileName: string;
     portfolioUrl: string;
     linkedInUrl: string;
+    coverLetter: string;
     notes: string;
     inTalentPool: boolean;
   }>,
@@ -210,6 +230,7 @@ export async function updateCandidate(
     .where(eq(candidates.id, id));
 
   revalidatePath("/candidates");
+  revalidatePath("/dashboard");
   return { success: true };
 }
 

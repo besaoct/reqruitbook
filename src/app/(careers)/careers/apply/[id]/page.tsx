@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, use } from "react";
+import React, { useState, useEffect, use, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -12,7 +12,6 @@ import {
   CardContent,
   CardHeader,
   CardTitle,
-  CardDescription,
 } from "@/components/ui/card";
 import {
   Briefcase,
@@ -27,6 +26,12 @@ import {
   Award,
   Globe,
   Share2,
+  Upload,
+  FileText,
+  Link2,
+  X,
+  Paperclip,
+  Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { getJobById } from "@/lib/actions/jobs";
@@ -54,11 +59,22 @@ export default function ApplyPage({
   const [city, setCity] = useState("San Francisco, CA");
   const [currentDesignation, setCurrentDesignation] = useState("");
   const [currentCompany, setCurrentCompany] = useState("");
-  const [experienceYears, setExperienceYears] = useState("5");
-  const [expectedSalary, setExpectedSalary] = useState("180000");
-  const [noticePeriodDays, setNoticePeriodDays] = useState("30");
+  const [totalExperience, setTotalExperience] = useState("4 Years");
+  const [expectedSalary, setExpectedSalary] = useState("$160,000 / year");
+  const [noticePeriod, setNoticePeriod] = useState("30 Days / Immediate");
+  const [linkedInUrl, setLinkedInUrl] = useState("");
+  const [portfolioUrl, setPortfolioUrl] = useState("");
   const [skills, setSkills] = useState("TypeScript, React, Node.js, PostgreSQL");
   const [coverLetter, setCoverLetter] = useState("");
+
+  // Resume Upload / Link Mode
+  const [resumeMode, setResumeMode] = useState<"upload" | "link">("upload");
+  const [resumeUrl, setResumeUrl] = useState("");
+  const [resumeFileName, setResumeFileName] = useState("");
+  const [resumeFileSize, setResumeFileSize] = useState<number | null>(null);
+  const [isUploadingResume, setIsUploadingResume] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     async function loadJob() {
@@ -67,6 +83,9 @@ export default function ApplyPage({
         setJob(j);
         if (j?.skills && Array.isArray(j.skills) && j.skills.length > 0) {
           setSkills(j.skills.join(", "));
+        }
+        if (j?.currency === "INR" || j?.locationText?.includes("India")) {
+          setExpectedSalary("₹20L / year");
         }
       } catch (err) {
         console.error(err);
@@ -77,10 +96,80 @@ export default function ApplyPage({
     loadJob();
   }, [id]);
 
+  const handleFileUpload = async (file: File) => {
+    const MAX_SIZE = 5 * 1024 * 1024;
+    if (file.size > MAX_SIZE) {
+      toast.error("File size exceeds 5 MB limit.");
+      return;
+    }
+
+    const allowed = [".pdf", ".doc", ".docx"];
+    const ext = file.name.substring(file.name.lastIndexOf(".")).toLowerCase();
+    if (!allowed.includes(ext)) {
+      toast.error("Only PDF, DOC, or DOCX files are supported.");
+      return;
+    }
+
+    setIsUploadingResume(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const res = await fetch("/api/upload", {
+        method: "POST",
+        body: formData,
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Failed to upload file.");
+      }
+
+      setResumeUrl(data.fileUrl);
+      setResumeFileName(data.fileName);
+      setResumeFileSize(data.fileSize);
+      toast.success("Resume uploaded successfully!");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to upload resume.");
+    } finally {
+      setIsUploadingResume(false);
+    }
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      handleFileUpload(file);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) {
+      handleFileUpload(file);
+    }
+  };
+
+  const handleRemoveResume = () => {
+    setResumeUrl("");
+    setResumeFileName("");
+    setResumeFileSize(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!fullName || !email) {
-      toast.error("Please fill in candidate name and email.");
+    if (!fullName.trim() || !email.trim()) {
+      toast.error("Please fill in your name and email address.");
+      return;
+    }
+
+    if (!resumeUrl.trim()) {
+      toast.error("Please upload your Resume/CV or paste a link.");
       return;
     }
 
@@ -88,19 +177,31 @@ export default function ApplyPage({
     try {
       const skillsArray = skills.split(",").map((s) => s.trim()).filter(Boolean);
 
+      // Extract numeric approximations for database integer columns
+      const expNumeric = parseInt(totalExperience.replace(/[^0-9]/g, "")) || 0;
+      const salaryNumeric = parseInt(expectedSalary.replace(/[^0-9]/g, "")) || 0;
+      const noticeNumeric = parseInt(noticePeriod.replace(/[^0-9]/g, "")) || 30;
+
       const result = await submitApplicationFromPortal({
         jobId: id,
-        fullName,
-        email,
-        phone,
-        city,
-        currentDesignation,
-        currentCompany,
-        totalExperienceYears: parseInt(experienceYears) || 3,
-        expectedSalary: parseInt(expectedSalary) || 120000,
-        noticePeriodDays: parseInt(noticePeriodDays) || 30,
+        fullName: fullName.trim(),
+        email: email.trim(),
+        phone: phone.trim(),
+        city: city.trim(),
+        currentDesignation: currentDesignation.trim(),
+        currentCompany: currentCompany.trim(),
+        totalExperienceYears: expNumeric,
+        totalExperienceText: totalExperience.trim(),
+        expectedSalary: salaryNumeric,
+        expectedSalaryText: expectedSalary.trim(),
+        noticePeriodDays: noticeNumeric,
+        noticePeriodText: noticePeriod.trim(),
+        linkedInUrl: linkedInUrl.trim(),
+        portfolioUrl: portfolioUrl.trim(),
+        resumeUrl: resumeUrl.trim(),
+        resumeFileName: resumeFileName.trim(),
         skills: skillsArray,
-        coverLetter,
+        coverLetter: coverLetter.trim(),
       });
 
       bridge.emit("application:received", {
@@ -139,8 +240,8 @@ export default function ApplyPage({
           </div>
           <div className="pt-2">
             <Link href="/careers">
-              <Button size="sm" variant="accent" className="text-xs w-full">
-                Back to Careers Board
+              <Button size="sm" variant="accent" className="text-xs">
+                Back to Careers Page
               </Button>
             </Link>
           </div>
@@ -149,170 +250,150 @@ export default function ApplyPage({
     );
   }
 
-  // Parse benefits list if available, or legacy string
+  // Parse benefits list
   let benefitsListToRender: BenefitItem[] = [];
   if (job?.benefitsList && Array.isArray(job.benefitsList) && job.benefitsList.length > 0) {
     benefitsListToRender = job.benefitsList;
-  } else if (job?.benefits) {
+  } else if (job?.benefits && typeof job.benefits === "string") {
     benefitsListToRender = job.benefits.split(",").map((b: string, idx: number) => ({
-      id: `b_${idx}`,
+      id: `legacy_${idx}`,
       title: b.trim(),
-      category: "custom" as const,
+      category: "custom",
     }));
   }
 
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col">
-      <header className="border-b border-border bg-card h-14 flex items-center justify-between px-4 sm:px-8">
-        <Link href="/careers" className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground font-medium transition-colors">
-          <ArrowLeft className="size-3.5" />
-          <span>Back to All Openings</span>
-        </Link>
-        <span className="text-xs text-muted-foreground">
-          {job?.reqCode || "REQ-OPENING"}
-        </span>
+      {/* Header */}
+      <header className="border-b border-border bg-card/80 backdrop-blur sticky top-0 z-30">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
+          <Link
+            href="/careers"
+            className="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <ArrowLeft className="size-4" />
+            <span>Back to All Openings</span>
+          </Link>
+          <span className="text-xs text-muted-foreground">
+            Requisition {job?.reqCode ? `#${job.reqCode}` : ""}
+          </span>
+        </div>
       </header>
 
-      <main className="max-w-4xl mx-auto px-4 sm:px-6 py-8 flex-1 w-full space-y-6">
+      {/* Main Content */}
+      <main className="max-w-4xl mx-auto px-4 sm:px-6 py-8 flex-1 w-full space-y-8">
         {loadingJob ? (
-          <div className="p-12 text-center text-xs text-muted-foreground flex items-center justify-center gap-2">
+          <div className="p-16 text-center text-xs text-muted-foreground flex items-center justify-center gap-2">
             <Loader2 className="size-4 animate-spin text-copper" />
-            <span>Loading requisition specifications...</span>
+            <span>Loading requisition details...</span>
           </div>
         ) : !job ? (
           <div className="p-12 text-center text-xs text-muted-foreground border border-dashed border-border rounded-xs">
-            Job requisition not found or closed.
+            Job requisition not found or has been unlisted.
           </div>
         ) : (
           <>
-            {/* Job Summary Banner */}
-            <div className="p-6 bg-card rounded-xs border border-border space-y-5">
-              <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 border-b border-border pb-5">
-                <div className="space-y-2">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h1 className="text-xl sm:text-2xl font-semibold text-foreground tracking-tight">{job.title}</h1>
-                    {job.reqCode && (
-                      <Badge variant="outline" className="text-[10px] border-border text-muted-foreground">
-                        {job.reqCode}
-                      </Badge>
-                    )}
-                  </div>
-
-                  <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                    <span className="font-medium text-foreground flex items-center gap-1">
-                      <Building2 className="size-3 text-copper" />
-                      <span>{job.departmentName || "Engineering"}</span>
-                    </span>
-                    <span>•</span>
-                    <span className="flex items-center gap-1">
-                      <MapPin className="size-3 text-copper" />
-                      <span>{job.locationName || job.locationText}</span>
-                    </span>
-                    <span>•</span>
-                    <span className="capitalize">{job.workMode?.replace(/_/g, " ")}</span>
-                    <span>•</span>
-                    <span className="capitalize">{job.employmentType?.replace(/_/g, " ")}</span>
-                    {job.experienceLevel && (
-                      <>
-                        <span>•</span>
-                        <span className="capitalize">{job.experienceLevel.replace(/_/g, " ")} Level</span>
-                      </>
-                    )}
-                  </div>
+            {/* Job Header & Details */}
+            <div className="space-y-6 pb-6 border-b border-border">
+              <div className="space-y-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge variant="outline" className="text-[10px] uppercase tracking-wide bg-copper/10 text-copper border-copper/30">
+                    {job.departmentName || "Engineering"}
+                  </Badge>
+                  <Badge variant="outline" className="text-[10px] border-border text-muted-foreground">
+                    {job.locationName || job.locationText}
+                  </Badge>
+                  <Badge variant="outline" className="capitalize text-[10px] border-border text-muted-foreground">
+                    {job.workMode?.replace(/_/g, " ")}
+                  </Badge>
+                  <Badge variant="outline" className="capitalize text-[10px] border-border text-muted-foreground">
+                    {job.employmentType?.replace(/_/g, " ")}
+                  </Badge>
                 </div>
 
-                {job.isSalaryPublic !== false && job.salaryMin && (
-                  <div className="text-right sm:text-right shrink-0">
+                <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">
+                  {job.title}
+                </h1>
+
+                {/* Salary & Experience highlight strip */}
+                <div className="flex flex-wrap items-center gap-4 pt-2 text-xs text-muted-foreground">
+                  {job.salaryMin ? (
                     <div className="text-sm sm:text-base font-bold text-copper">
-                      {job.currency || "$"} {(job.salaryMin || 0).toLocaleString()} – {(job.salaryMax || 0).toLocaleString()}
+                      {job.currency || "USD"} {(job.salaryMin || 0).toLocaleString()} – {(job.salaryMax || 0).toLocaleString()}
+                      <span className="text-xs text-muted-foreground font-normal ml-1">
+                        / {job.payFrequency === "hourly" ? "hr" : "yr"}
+                      </span>
                     </div>
-                    <span className="text-[11px] text-muted-foreground block capitalize">
-                      {job.payFrequency ? `${job.payFrequency} compensation` : "Annual Base"}
+                  ) : (
+                    <div className="text-xs font-semibold text-copper">Competitive Market Compensation</div>
+                  )}
+
+                  {job.experienceLevel && (
+                    <span className="flex items-center gap-1">
+                      <Clock className="size-3.5 text-copper" />
+                      <span className="capitalize">{job.experienceLevel?.replace(/_/g, " ")} Level</span>
                     </span>
-                  </div>
-                )}
+                  )}
+                  {job.educationLevel && (
+                    <span className="flex items-center gap-1">
+                      <GraduationCap className="size-3.5 text-copper" />
+                      <span className="capitalize">{job.educationLevel?.replace(/_/g, " ")}</span>
+                    </span>
+                  )}
+                </div>
               </div>
 
-              {/* Extra Highlights: Equity, Bonus, Relocation */}
-              {(job.equityRange || job.bonusStructure || job.relocationAssistance) && (
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3 bg-muted/20 rounded-xs border border-border/80 text-xs">
-                  {job.equityRange && (
-                    <div>
-                      <span className="text-[10px] uppercase font-semibold text-muted-foreground block">Equity / Stock Grants</span>
-                      <span className="font-medium text-foreground">{job.equityRange}</span>
-                    </div>
-                  )}
-                  {job.bonusStructure && (
-                    <div>
-                      <span className="text-[10px] uppercase font-semibold text-muted-foreground block">Performance Bonus</span>
-                      <span className="font-medium text-foreground">{job.bonusStructure}</span>
-                    </div>
-                  )}
-                  {job.relocationAssistance && (
-                    <div>
-                      <span className="text-[10px] uppercase font-semibold text-muted-foreground block">Relocation / Visa</span>
-                      <span className="font-medium text-foreground">{job.relocationAssistance}</span>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Role Overview */}
+              {/* Summary */}
               {job.summary && (
                 <div className="space-y-1.5 text-xs">
-                  <h3 className="font-semibold text-xs uppercase tracking-wider text-copper">Role Mission &amp; Overview</h3>
+                  <h3 className="font-semibold text-xs uppercase tracking-wider text-copper">Role Summary</h3>
                   <div
+                    className="text-muted-foreground leading-relaxed prose prose-sm max-w-none text-xs"
                     dangerouslySetInnerHTML={{ __html: job.summary }}
-                    className="text-foreground/90 text-xs leading-relaxed space-y-2 [&_ul]:list-disc [&_ul]:pl-4 [&_ol]:list-decimal [&_ol]:pl-4 [&_h1]:text-base [&_h1]:font-bold [&_h2]:text-sm [&_h2]:font-semibold [&_h3]:text-xs [&_h3]:font-semibold [&_blockquote]:border-l-2 [&_blockquote]:border-copper [&_blockquote]:pl-3 [&_blockquote]:italic [&_a]:text-copper [&_a]:underline"
                   />
                 </div>
               )}
 
-              {/* Key Responsibilities */}
-              {job.responsibilities && job.responsibilities !== job.summary && (
+              {/* Responsibilities */}
+              {job.responsibilities && (
                 <div className="space-y-1.5 text-xs pt-3 border-t border-border/60">
-                  <h3 className="font-semibold text-xs uppercase tracking-wider text-copper">Key Deliverables &amp; Responsibilities</h3>
+                  <h3 className="font-semibold text-xs uppercase tracking-wider text-copper">Key Responsibilities</h3>
                   <div
+                    className="text-muted-foreground leading-relaxed prose prose-sm max-w-none text-xs"
                     dangerouslySetInnerHTML={{ __html: job.responsibilities }}
-                    className="text-foreground/90 text-xs leading-relaxed space-y-2 [&_ul]:list-disc [&_ul]:pl-4 [&_ol]:list-decimal [&_ol]:pl-4 [&_h1]:text-base [&_h1]:font-bold [&_h2]:text-sm [&_h2]:font-semibold [&_h3]:text-xs [&_h3]:font-semibold [&_blockquote]:border-l-2 [&_blockquote]:border-copper [&_blockquote]:pl-3 [&_blockquote]:italic [&_a]:text-copper [&_a]:underline"
                   />
                 </div>
               )}
 
-              {/* Mandatory Requirements */}
+              {/* Requirements */}
               {job.requirements && (
                 <div className="space-y-1.5 text-xs pt-3 border-t border-border/60">
                   <h3 className="font-semibold text-xs uppercase tracking-wider text-copper">Qualifications &amp; Requirements</h3>
                   <div
+                    className="text-muted-foreground leading-relaxed prose prose-sm max-w-none text-xs"
                     dangerouslySetInnerHTML={{ __html: job.requirements }}
-                    className="text-foreground/90 text-xs leading-relaxed space-y-2 [&_ul]:list-disc [&_ul]:pl-4 [&_ol]:list-decimal [&_ol]:pl-4 [&_h1]:text-base [&_h1]:font-bold [&_h2]:text-sm [&_h2]:font-semibold [&_h3]:text-xs [&_h3]:font-semibold [&_blockquote]:border-l-2 [&_blockquote]:border-copper [&_blockquote]:pl-3 [&_blockquote]:italic [&_a]:text-copper [&_a]:underline"
                   />
                 </div>
               )}
 
-              {/* Nice to Have */}
+              {/* Nice to have */}
               {job.niceToHave && (
                 <div className="space-y-1.5 text-xs pt-3 border-t border-border/60">
-                  <h3 className="font-semibold text-xs uppercase tracking-wider text-copper">Preferred / Nice-to-Have Experience</h3>
+                  <h3 className="font-semibold text-xs uppercase tracking-wider text-copper">Nice to Have</h3>
                   <div
+                    className="text-muted-foreground leading-relaxed prose prose-sm max-w-none text-xs"
                     dangerouslySetInnerHTML={{ __html: job.niceToHave }}
-                    className="text-foreground/90 text-xs leading-relaxed space-y-2 [&_ul]:list-disc [&_ul]:pl-4 [&_ol]:list-decimal [&_ol]:pl-4 [&_h1]:text-base [&_h1]:font-bold [&_h2]:text-sm [&_h2]:font-semibold [&_h3]:text-xs [&_h3]:font-semibold [&_blockquote]:border-l-2 [&_blockquote]:border-copper [&_blockquote]:pl-3 [&_blockquote]:italic [&_a]:text-copper [&_a]:underline"
                   />
                 </div>
               )}
 
-              {/* Technical Skills Badges */}
-              {((job.skills && job.skills.length > 0) || (job.secondarySkills && job.secondarySkills.length > 0)) && (
-                <div className="space-y-2 pt-3 border-t border-border/60">
-                  <h3 className="font-semibold text-xs uppercase tracking-wider text-copper">Relevant Technologies &amp; Competencies</h3>
-                  <div className="flex flex-wrap gap-1.5">
-                    {job.skills?.map((s: string) => (
-                      <Badge key={s} variant="outline" className="text-xs px-2 py-0.5 border-copper/40 text-foreground bg-copper/5">
-                        {s}
-                      </Badge>
-                    ))}
-                    {job.secondarySkills?.map((s: string) => (
-                      <Badge key={s} variant="outline" className="text-xs px-2 py-0.5 border-border text-muted-foreground">
+              {/* Required Skills Chips */}
+              {job.skills && Array.isArray(job.skills) && job.skills.length > 0 && (
+                <div className="space-y-1.5 text-xs pt-3 border-t border-border/60">
+                  <h3 className="font-semibold text-xs uppercase tracking-wider text-copper">Primary Tech Stack &amp; Skills</h3>
+                  <div className="flex flex-wrap gap-1.5 pt-0.5">
+                    {job.skills.map((s: string) => (
+                      <Badge key={s} variant="outline" className="text-[11px] px-2 py-0.5 bg-card border-border text-foreground">
                         {s}
                       </Badge>
                     ))}
@@ -320,7 +401,7 @@ export default function ApplyPage({
                 </div>
               )}
 
-              {/* Structured Benefits & Perks Grid */}
+              {/* Benefits & Perks */}
               {benefitsListToRender.length > 0 && (
                 <div className="space-y-3 pt-4 border-t border-border/60">
                   <div className="flex items-center justify-between">
@@ -357,17 +438,6 @@ export default function ApplyPage({
                   </div>
                 </div>
               )}
-
-              {/* About Team */}
-              {job.aboutTeam && (
-                <div className="space-y-1.5 text-xs pt-3 border-t border-border/60">
-                  <h3 className="font-semibold text-xs uppercase tracking-wider text-copper">About the Team &amp; Work Culture</h3>
-                  <div
-                    dangerouslySetInnerHTML={{ __html: job.aboutTeam }}
-                    className="text-foreground/90 text-xs leading-relaxed space-y-2 [&_ul]:list-disc [&_ul]:pl-4 [&_ol]:list-decimal [&_ol]:pl-4 [&_h1]:text-base [&_h1]:font-bold [&_h2]:text-sm [&_h2]:font-semibold [&_h3]:text-xs [&_h3]:font-semibold [&_blockquote]:border-l-2 [&_blockquote]:border-copper [&_blockquote]:pl-3 [&_blockquote]:italic [&_a]:text-copper [&_a]:underline"
-                  />
-                </div>
-              )}
             </div>
 
             {/* Application Form */}
@@ -379,6 +449,7 @@ export default function ApplyPage({
                 </p>
               </div>
 
+              {/* 1. Candidate Contact Information */}
               <Card className="shadow-none">
                 <CardHeader className="pb-3">
                   <CardTitle className="text-sm font-semibold">1. Candidate Contact Information</CardTitle>
@@ -390,8 +461,8 @@ export default function ApplyPage({
                       <Input
                         value={fullName}
                         onChange={(e) => setFullName(e.target.value)}
-                        placeholder="e.g. Alex Morgan"
-                        className="h-8 text-xs"
+                        placeholder="e.g. Rahul Sharma"
+                        className="h-8 text-xs bg-card"
                         required
                       />
                     </div>
@@ -402,8 +473,8 @@ export default function ApplyPage({
                         type="email"
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
-                        placeholder="e.g. alex@example.com"
-                        className="h-8 text-xs"
+                        placeholder="e.g. rahul@example.com"
+                        className="h-8 text-xs bg-card"
                         required
                       />
                     </div>
@@ -413,8 +484,8 @@ export default function ApplyPage({
                       <Input
                         value={phone}
                         onChange={(e) => setPhone(e.target.value)}
-                        placeholder="+1 (555) 000-0000"
-                        className="h-8 text-xs"
+                        placeholder="+91 98765 43210 or +1 (555) 000-0000"
+                        className="h-8 text-xs bg-card"
                       />
                     </div>
 
@@ -423,17 +494,18 @@ export default function ApplyPage({
                       <Input
                         value={city}
                         onChange={(e) => setCity(e.target.value)}
-                        placeholder="e.g. London, United Kingdom"
-                        className="h-8 text-xs"
+                        placeholder="e.g. Bengaluru, India or London, UK"
+                        className="h-8 text-xs bg-card"
                       />
                     </div>
                   </div>
                 </CardContent>
               </Card>
 
+              {/* 2. Professional Background & Compensation Expectations */}
               <Card className="shadow-none">
                 <CardHeader className="pb-3">
-                  <CardTitle className="text-sm font-semibold">2. Experience &amp; Compensation Expectations</CardTitle>
+                  <CardTitle className="text-sm font-semibold">2. Experience &amp; Compensation Details</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4 text-xs">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -443,47 +515,47 @@ export default function ApplyPage({
                         value={currentDesignation}
                         onChange={(e) => setCurrentDesignation(e.target.value)}
                         placeholder="e.g. Senior Backend Engineer"
-                        className="h-8 text-xs"
+                        className="h-8 text-xs bg-card"
                       />
                     </div>
 
                     <div className="space-y-1.5">
-                      <label className="field-label">Current Employer</label>
+                      <label className="field-label">Current Company</label>
                       <Input
                         value={currentCompany}
                         onChange={(e) => setCurrentCompany(e.target.value)}
-                        placeholder="e.g. Acme Corp"
-                        className="h-8 text-xs"
+                        placeholder="e.g. Acme Technologies"
+                        className="h-8 text-xs bg-card"
                       />
                     </div>
 
                     <div className="space-y-1.5">
-                      <label className="field-label">Total Experience (Years)</label>
+                      <label className="field-label">Total Experience</label>
                       <Input
-                        type="number"
-                        value={experienceYears}
-                        onChange={(e) => setExperienceYears(e.target.value)}
-                        className="h-8 text-xs tabular"
+                        value={totalExperience}
+                        onChange={(e) => setTotalExperience(e.target.value)}
+                        placeholder="e.g. 4 Years"
+                        className="h-8 text-xs bg-card"
                       />
                     </div>
 
                     <div className="space-y-1.5">
-                      <label className="field-label">Expected Annual Compensation ({job.currency || "USD"})</label>
+                      <label className="field-label">Notice Period</label>
                       <Input
-                        type="number"
-                        value={expectedSalary}
-                        onChange={(e) => setExpectedSalary(e.target.value)}
-                        className="h-8 text-xs tabular"
+                        value={noticePeriod}
+                        onChange={(e) => setNoticePeriod(e.target.value)}
+                        placeholder="e.g. 30 Days / Immediate"
+                        className="h-8 text-xs bg-card"
                       />
                     </div>
 
                     <div className="space-y-1.5 sm:col-span-2">
-                      <label className="field-label">Notice Period (Days)</label>
+                      <label className="field-label">Expected Salary</label>
                       <Input
-                        type="number"
-                        value={noticePeriodDays}
-                        onChange={(e) => setNoticePeriodDays(e.target.value)}
-                        className="h-8 text-xs tabular"
+                        value={expectedSalary}
+                        onChange={(e) => setExpectedSalary(e.target.value)}
+                        placeholder="e.g. ₹20L / year or $180,000 / year"
+                        className="h-8 text-xs bg-card"
                       />
                     </div>
 
@@ -493,24 +565,201 @@ export default function ApplyPage({
                         value={skills}
                         onChange={(e) => setSkills(e.target.value)}
                         placeholder="e.g. TypeScript, Distributed Systems, PostgreSQL, AWS"
-                        className="h-8 text-xs"
-                      />
-                    </div>
-
-                    <div className="space-y-1.5 sm:col-span-2">
-                      <label className="field-label">Cover Note / Why do you want to join us?</label>
-                      <Textarea
-                        rows={3}
-                        value={coverLetter}
-                        onChange={(e) => setCoverLetter(e.target.value)}
-                        placeholder="Brief summary of your background, achievements, and interest in this specific role..."
-                        className="text-xs"
+                        className="h-8 text-xs bg-card"
                       />
                     </div>
                   </div>
                 </CardContent>
               </Card>
 
+              {/* 3. Links & Online Presence */}
+              <Card className="shadow-none">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm font-semibold">3. Online Presence &amp; Profiles</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4 text-xs">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <label className="field-label">LinkedIn Profile URL</label>
+                      <Input
+                        type="url"
+                        value={linkedInUrl}
+                        onChange={(e) => setLinkedInUrl(e.target.value)}
+                        placeholder="https://linkedin.com/in/rahul"
+                        className="h-8 text-xs bg-card"
+                      />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="field-label">Portfolio / GitHub URL</label>
+                      <Input
+                        type="url"
+                        value={portfolioUrl}
+                        onChange={(e) => setPortfolioUrl(e.target.value)}
+                        placeholder="https://github.com/rahulsharma"
+                        className="h-8 text-xs bg-card"
+                      />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* 4. Resume / CV Attachment */}
+              <Card className="shadow-none">
+                <CardHeader className="pb-3 flex flex-row items-center justify-between">
+                  <CardTitle className="text-sm font-semibold flex items-center gap-1.5">
+                    <FileText className="size-4 text-copper" />
+                    <span>4. Resume / CV *</span>
+                  </CardTitle>
+
+                  {/* Upload File vs Paste Link Tabs */}
+                  <div className="inline-flex rounded-xs p-0.5 bg-muted border border-border">
+                    <button
+                      type="button"
+                      onClick={() => setResumeMode("upload")}
+                      className={`px-2.5 py-1 text-xs font-medium rounded-xs transition-all cursor-pointer ${
+                        resumeMode === "upload"
+                          ? "bg-card text-foreground shadow-xs font-semibold"
+                          : "text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      Upload File
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setResumeMode("link")}
+                      className={`px-2.5 py-1 text-xs font-medium rounded-xs transition-all cursor-pointer ${
+                        resumeMode === "link"
+                          ? "bg-card text-foreground shadow-xs font-semibold"
+                          : "text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      Paste Link
+                    </button>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-3 text-xs">
+                  {resumeMode === "upload" ? (
+                    <div>
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                        className="hidden"
+                        onChange={handleFileChange}
+                      />
+
+                      {resumeUrl && resumeFileName ? (
+                        <div className="p-3.5 bg-muted/40 rounded-xs border border-copper/40 flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <div className="size-9 rounded-xs bg-copper/10 text-copper border border-copper/20 flex items-center justify-center shrink-0">
+                              <FileText className="size-4.5" />
+                            </div>
+                            <div className="min-w-0">
+                              <span className="font-semibold text-xs text-foreground block truncate">
+                                {resumeFileName}
+                              </span>
+                              <div className="flex items-center gap-2 text-[10px] text-muted-foreground mt-0.5">
+                                {resumeFileSize && (
+                                  <span>{(resumeFileSize / (1024 * 1024)).toFixed(2)} MB</span>
+                                )}
+                                <span className="text-emerald-600 font-medium flex items-center gap-0.5">
+                                  <CheckCircle2 className="size-3" />
+                                  <span>Ready to submit</span>
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="xs"
+                            onClick={handleRemoveResume}
+                            className="h-8 text-destructive/80 hover:text-destructive hover:bg-destructive/10 gap-1 text-xs cursor-pointer"
+                          >
+                            <Trash2 className="size-3.5" />
+                            <span>Remove</span>
+                          </Button>
+                        </div>
+                      ) : (
+                        <div
+                          onDragOver={(e) => {
+                            e.preventDefault();
+                            setIsDragging(true);
+                          }}
+                          onDragLeave={() => setIsDragging(false)}
+                          onDrop={handleDrop}
+                          onClick={() => fileInputRef.current?.click()}
+                          className={`p-6 border-2 border-dashed rounded-xs text-center cursor-pointer transition-all ${
+                            isDragging
+                              ? "border-copper bg-copper/10"
+                              : "border-border hover:border-copper/60 bg-card/60 hover:bg-muted/20"
+                          }`}
+                        >
+                          {isUploadingResume ? (
+                            <div className="flex flex-col items-center gap-2">
+                              <Loader2 className="size-6 animate-spin text-copper" />
+                              <span className="text-xs font-medium text-foreground">Uploading resume document...</span>
+                            </div>
+                          ) : (
+                            <div className="space-y-1.5">
+                              <div className="size-9 rounded-full bg-copper/10 text-copper mx-auto flex items-center justify-center">
+                                <Upload className="size-4.5" />
+                              </div>
+                              <div className="font-semibold text-xs text-foreground">
+                                Click to upload your resume
+                              </div>
+                              <p className="text-[11px] text-muted-foreground">
+                                PDF, DOC or DOCX · max 5 MB
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="space-y-1.5">
+                      <label className="field-label">Resume / CV Public Document Link *</label>
+                      <div className="relative">
+                        <Link2 className="absolute left-2.5 top-2.5 size-3.5 text-muted-foreground" />
+                        <Input
+                          type="url"
+                          value={resumeUrl}
+                          onChange={(e) => {
+                            setResumeUrl(e.target.value);
+                            setResumeFileName(e.target.value);
+                          }}
+                          placeholder="https://drive.google.com/file/... or https://dropbox.com/..."
+                          className="pl-8 h-8 text-xs bg-card"
+                          required={resumeMode === "link"}
+                        />
+                      </div>
+                      <p className="text-[10px] text-muted-foreground">
+                        Ensure link permissions are set to "Anyone with the link can view".
+                      </p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* 5. Cover Letter / Introduction Note */}
+              <Card className="shadow-none">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm font-semibold">5. Cover Letter / Introduction Note</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2 text-xs">
+                  <Textarea
+                    rows={4}
+                    value={coverLetter}
+                    onChange={(e) => setCoverLetter(e.target.value)}
+                    placeholder="Brief summary of your background, key achievements, and introduction note for the hiring team..."
+                    className="text-xs bg-card"
+                  />
+                </CardContent>
+              </Card>
+
+              {/* Submit Actions */}
               <div className="flex items-center justify-end gap-2 pt-2">
                 <Link href="/careers">
                   <Button variant="outline" size="sm" className="text-xs">
@@ -521,10 +770,14 @@ export default function ApplyPage({
                   type="submit"
                   size="sm"
                   variant="accent"
-                  disabled={isSubmitting}
-                  className="gap-1.5 text-xs min-w-35"
+                  disabled={isSubmitting || isUploadingResume}
+                  className="gap-1.5 text-xs min-w-35 cursor-pointer"
                 >
-                  {isSubmitting ? <Loader2 className="size-3.5 animate-spin" /> : <CheckCircle2 className="size-3.5" />}
+                  {isSubmitting ? (
+                    <Loader2 className="size-3.5 animate-spin" />
+                  ) : (
+                    <CheckCircle2 className="size-3.5" />
+                  )}
                   <span>Submit Application</span>
                 </Button>
               </div>
