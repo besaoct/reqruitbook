@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -1012,7 +1013,7 @@ export function HostHrmRecruitmentView() {
   };
 
   return (
-    <div className="page w-full max-w-full min-w-0 overflow-hidden">
+    <div className="page w-full max-w-full min-w-0">
       <PageHeader
         title="System &amp; Access Control Settings"
         description="Manage company details, dynamic database-persisted RBAC roles, live permission matrices, departments, and HRM microfrontend bridges."
@@ -1021,22 +1022,28 @@ export function HostHrmRecruitmentView() {
       <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-4 w-full max-w-full min-w-0">
         {/* Responsive Horizontal Scroll Tabs Container */}
         <div className="relative w-full max-w-full group">
-          {/* Left Floating Chevron */}
-          {canScrollTabsLeft && (
+          {/* Left Edge Fading Mask & Floating Chevron */}
+          <div
+            className={cn(
+              "pointer-events-none absolute left-0 top-0 bottom-0 w-12 bg-gradient-to-r from-background via-background/90 to-transparent z-20 transition-all duration-200 flex items-center justify-start pl-0.5",
+              canScrollTabsLeft ? "opacity-100" : "opacity-0 pointer-events-none",
+            )}
+          >
             <button
               type="button"
               onClick={() => scrollTabs("left")}
+              disabled={!canScrollTabsLeft}
               aria-label="Scroll tabs left"
-              className="absolute -left-2 top-1/2 -translate-y-1/2 z-10 size-6 rounded-full bg-background/95 border border-border shadow-md flex items-center justify-center text-foreground hover:text-copper hover:border-copper transition-all cursor-pointer backdrop-blur-xs"
+              className="pointer-events-auto size-7 rounded-full bg-card/95 hover:bg-card border border-border hover:border-copper shadow-md text-foreground hover:text-copper flex items-center justify-center transition-all hover:scale-105 active:scale-95 cursor-pointer backdrop-blur-xs"
             >
-              <ChevronLeft className="size-3.5" />
+              <ChevronLeft className="size-4" />
             </button>
-          )}
+          </div>
 
           {/* Scrollable Tabs List Viewport */}
           <div
             ref={tabsScrollRef}
-            className="w-full max-w-full overflow-x-auto no-scrollbar scroll-smooth border-b border-border"
+            className="w-full max-w-full overflow-x-auto no-scrollbar scroll-smooth border-b border-border px-1"
           >
             <TabsList className="mb-0 border-b-0 inline-flex w-max gap-4 p-0 pb-0.5">
               {canViewCompany && (
@@ -1093,17 +1100,23 @@ export function HostHrmRecruitmentView() {
             </TabsList>
           </div>
 
-          {/* Right Floating Chevron */}
-          {canScrollTabsRight && (
+          {/* Right Edge Fading Mask & Floating Chevron */}
+          <div
+            className={cn(
+              "pointer-events-none absolute right-0 top-0 bottom-0 w-12 bg-gradient-to-l from-background via-background/90 to-transparent z-20 transition-all duration-200 flex items-center justify-end pr-0.5",
+              canScrollTabsRight ? "opacity-100" : "opacity-0 pointer-events-none",
+            )}
+          >
             <button
               type="button"
               onClick={() => scrollTabs("right")}
+              disabled={!canScrollTabsRight}
               aria-label="Scroll tabs right"
-              className="absolute -right-2 top-1/2 -translate-y-1/2 z-10 size-6 rounded-full bg-background/95 border border-border shadow-md flex items-center justify-center text-foreground hover:text-copper hover:border-copper transition-all cursor-pointer backdrop-blur-xs"
+              className="pointer-events-auto size-7 rounded-full bg-card/95 hover:bg-card border border-border hover:border-copper shadow-md text-foreground hover:text-copper flex items-center justify-center transition-all hover:scale-105 active:scale-95 cursor-pointer backdrop-blur-xs"
             >
-              <ChevronRight className="size-3.5" />
+              <ChevronRight className="size-4" />
             </button>
-          )}
+          </div>
         </div>
 
         {/* 1. COMPANY & BRANDING */}
