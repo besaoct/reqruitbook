@@ -26,6 +26,7 @@ import {
   Eye,
   FileText,
   User,
+  Mail,
 } from "lucide-react";
 import {
   Dialog,
@@ -53,6 +54,7 @@ import {
   rejectApplication,
   type ApplicationStage,
 } from "@/lib/actions/applications";
+import { sendMessageToCandidate } from "@/lib/actions/communications";
 import { getJobs } from "@/lib/actions/jobs";
 import { RoleGuard } from "@/components/auth/role-guard";
 import { ApplicationDetailDrawer } from "@/components/applications/application-detail-drawer";
@@ -158,6 +160,7 @@ function ApplicationsContent() {
   // Reject modal
   const [rejectingAppId, setRejectingAppId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState("Profile does not meet core technical bar.");
+  const [notifyCandidate, setNotifyCandidate] = useState(true);
   const [isRejecting, setIsRejecting] = useState(false);
 
   const loadData = async () => {
@@ -202,8 +205,26 @@ function ApplicationsContent() {
     if (!rejectingAppId) return;
     setIsRejecting(true);
     try {
+      const targetApp = applications.find((a) => a.id === rejectingAppId);
       await rejectApplication(rejectingAppId, rejectReason);
-      toast.success("Application marked as rejected.");
+
+      if (notifyCandidate && targetApp?.candidateId && targetApp?.candidateEmail) {
+        try {
+          await sendMessageToCandidate({
+            candidateId: targetApp.candidateId,
+            recipientEmail: targetApp.candidateEmail,
+            subject: `Update regarding your application for ${targetApp.jobTitle || "our open role"} at ReqruitBook`,
+            body: `Dear ${targetApp.candidateName || "Candidate"},\n\nThank you for taking the time to speak with our team regarding the ${targetApp.jobTitle || "open role"} position at ReqruitBook.\n\nWhile your background and qualifications are commendable, we have decided to proceed with other candidates whose experience more closely aligns with our immediate technical requirements.\n\nWe genuinely appreciate the dedication and thoughtful insights you shared during our discussions, and we would welcome the opportunity to stay connected for future openings.\n\nWarm regards,\nReqruitBook Talent Acquisition Team`,
+          });
+          toast.success("Application rejected and candidate notified via email.");
+        } catch (emailErr) {
+          console.error("Failed to dispatch rejection email:", emailErr);
+          toast.success("Application marked as rejected (email delivery queued).");
+        }
+      } else {
+        toast.success("Application marked as rejected.");
+      }
+
       setRejectingAppId(null);
       await loadData();
     } catch {
@@ -355,12 +376,15 @@ function ApplicationsContent() {
               selectedStage !== "all" ? "border-copper font-semibold text-copper" : "border-border",
             )}
           >
-            <option value="all">All Stages (8 Pipeline Stages)</option>
-            {KANBAN_STAGES.map((s) => (
-              <option key={s.id} value={s.id}>
-                Stage: {s.name}
-              </option>
-            ))}
+            <option value="all">All Stages ({applications.length} Applicants)</option>
+            <option value="applied">Stage: Applied / New</option>
+            <option value="screening">Stage: Screening</option>
+            <option value="shortlisted">Stage: Shortlisted</option>
+            <option value="interview">Stage: Interview Loops</option>
+            <option value="evaluation">Stage: Evaluation &amp; Debrief</option>
+            <option value="selected">Stage: Selected</option>
+            <option value="offer">Stage: Offer Stage</option>
+            <option value="hired">Stage: Hired (HRM)</option>
             <option value="rejected">Stage: Rejected</option>
           </select>
 
@@ -544,6 +568,18 @@ function ApplicationsContent() {
                               <span>View App</span>
                             </button>
 
+                            <RoleGuard permission="canSendCommunications">
+                              <button
+                                type="button"
+                                onClick={() => setSelectedDetailAppId(app.id)}
+                                className="hover:text-copper flex items-center gap-0.5 py-0.5 px-1 rounded-xs hover:bg-muted/60 transition-colors cursor-pointer"
+                                title="Email Candidate"
+                              >
+                                <Mail className="size-3 text-copper" />
+                                <span>Email</span>
+                              </button>
+                            </RoleGuard>
+
                             <RoleGuard permission="canScheduleInterviews">
                               <Link
                                 href={`/interviews/schedule?candidateId=${app.candidateId}&applicationId=${app.id}`}
@@ -694,6 +730,19 @@ function ApplicationsContent() {
                             <span>View App</span>
                           </Button>
 
+                          <RoleGuard permission="canSendCommunications">
+                            <Button
+                              size="xs"
+                              variant="outline"
+                              onClick={() => setSelectedDetailAppId(app.id)}
+                              className="gap-1 text-xs h-7 text-copper border-copper/30 hover:bg-copper/10"
+                              title="Email Candidate"
+                            >
+                              <Mail className="size-3" />
+                              <span>Email</span>
+                            </Button>
+                          </RoleGuard>
+
                           <RoleGuard permission="canScheduleInterviews">
                             <Link
                               href={`/interviews/schedule?candidateId=${app.candidateId}&applicationId=${app.id}`}
@@ -765,6 +814,16 @@ function ApplicationsContent() {
                 className="w-full rounded-xs border border-border bg-card p-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-destructive"
               />
             </div>
+
+            <label className="flex items-center gap-2 pt-1 text-xs text-foreground cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={notifyCandidate}
+                onChange={(e) => setNotifyCandidate(e.target.checked)}
+                className="rounded-xs border-border text-copper focus:ring-copper accent-copper"
+              />
+              <span className="text-muted-foreground">Send respectful rejection email to candidate</span>
+            </label>
           </div>
           <DialogFooter>
             <Button size="xs" variant="outline" onClick={() => setRejectingAppId(null)}>

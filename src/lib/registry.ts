@@ -138,9 +138,11 @@ export const APP_NAVIGATION: NavDef[] = [
     permissions: ["canAdvancePipeline", "canManageCandidates"],
     children: [
       { label: "All Applications", href: "/applications" },
-      { label: "New / Screening", href: "/applications?stage=screening", badgeKey: "screeningCount" },
+      { label: "Applied / New", href: "/applications?stage=applied" },
+      { label: "Screening", href: "/applications?stage=screening", badgeKey: "screeningCount" },
       { label: "Shortlisted", href: "/applications?stage=shortlisted" },
-      { label: "Interview Round", href: "/applications?stage=interview" },
+      { label: "Interview Loops", href: "/applications?stage=interview" },
+      { label: "Evaluation & Debrief", href: "/applications?stage=evaluation" },
       { label: "Selected", href: "/applications?stage=selected" },
       { label: "Offer Stage", href: "/applications?stage=offer" },
       { label: "Hired (HRM)", href: "/applications?stage=hired" },
