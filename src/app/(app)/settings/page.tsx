@@ -1025,7 +1025,7 @@ export function HostHrmRecruitmentView() {
           {/* Left Edge Fading Mask & Floating Chevron */}
           <div
             className={cn(
-              "pointer-events-none absolute left-0 top-0 bottom-0 w-12 bg-gradient-to-r from-background via-background/90 to-transparent z-20 transition-all duration-200 flex items-center justify-start pl-0.5",
+              "pointer-events-none absolute left-0 top-0 bottom-0 w-12 bg-linear-to-r from-background via-background/90 to-transparent z-20 transition-all duration-200 flex items-center justify-start pl-0.5",
               canScrollTabsLeft ? "opacity-100" : "opacity-0 pointer-events-none",
             )}
           >
@@ -1043,9 +1043,9 @@ export function HostHrmRecruitmentView() {
           {/* Scrollable Tabs List Viewport */}
           <div
             ref={tabsScrollRef}
-            className="w-full max-w-full overflow-x-auto no-scrollbar scroll-smooth border-b border-border px-1"
+            className="w-full max-w-full overflow-x-auto no-scrollbar scroll-smooth border-b border-border px-0"
           >
-            <TabsList className="mb-0 border-b-0 inline-flex w-max gap-4 p-0 pb-0.5">
+            <TabsList className="mb-0 border-b-0 inline-flex w-max gap-4 p-0 h-9">
               {canViewCompany && (
                 <TabsTrigger value="company" className="shrink-0 whitespace-nowrap">
                   Company &amp; Branding
@@ -1103,7 +1103,7 @@ export function HostHrmRecruitmentView() {
           {/* Right Edge Fading Mask & Floating Chevron */}
           <div
             className={cn(
-              "pointer-events-none absolute right-0 top-0 bottom-0 w-12 bg-gradient-to-l from-background via-background/90 to-transparent z-20 transition-all duration-200 flex items-center justify-end pr-0.5",
+              "pointer-events-none absolute right-0 top-0 bottom-0 w-12 bg-linear-to-l from-background via-background/90 to-transparent z-20 transition-all duration-200 flex items-center justify-end pr-0.5",
               canScrollTabsRight ? "opacity-100" : "opacity-0 pointer-events-none",
             )}
           >
