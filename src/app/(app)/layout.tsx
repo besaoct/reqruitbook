@@ -6,14 +6,6 @@ import { getNavigationBadgeCounts } from "@/lib/actions/navigation";
 import { getDepartments } from "@/lib/actions/settings";
 import { getSystemNotifications } from "@/lib/actions/notifications";
 
-const ROLE_LABELS: Record<string, string> = {
-  system_admin: "System Administrator",
-  hr_admin: "HR Administrator",
-  recruiter: "Lead Talent Partner",
-  hiring_manager: "Hiring Manager",
-  interviewer: "Interview Panelist",
-};
-
 export default async function AppLayout({
   children,
 }: {
@@ -43,7 +35,9 @@ export default async function AppLayout({
     id: currentUser?.id || "usr_recruiter_01",
     name: currentUser?.name || "Recruiter",
     email: currentUser?.email || "recruiter@myorganisation.com",
-    roleLabel: ROLE_LABELS[userRole] || userRole.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()),
+    roleLabel:
+      currentUser?.roleLabel ||
+      userRole.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()),
   };
 
   // Pass dynamic role and permissions to filter navigation

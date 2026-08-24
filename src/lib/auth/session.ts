@@ -21,6 +21,7 @@ export interface AuthUser {
   name: string;
   email: string;
   role: string;
+  roleLabel?: string;
   permissions: string[];
   departmentId: string | null;
   avatarUrl: string | null;
@@ -126,6 +127,9 @@ export async function validateSessionToken(token: string): Promise<AuthUser | nu
     name: foundSession.user.name,
     email: foundSession.user.email,
     role: foundSession.user.role,
+    roleLabel:
+      foundSession.roleData?.name ||
+      foundSession.user.role.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()),
     permissions: dynamicPermissions,
     departmentId: foundSession.user.departmentId,
     avatarUrl: foundSession.user.avatarUrl,
