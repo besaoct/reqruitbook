@@ -170,7 +170,7 @@ export async function createJob(data: {
   customQuestions?: any[];
   hiringManagerId?: string;
   recruiterId?: string;
-  status?: "draft" | "published" | "on_hold" | "closed";
+  status?: string;
 }) {
   const user = await getCurrentUser();
   if (!user) throw new Error("Unauthenticated");
@@ -201,14 +201,13 @@ export async function createJob(data: {
     salaryMax: data.salaryMax || 150000,
     currency: data.currency || "USD",
     payFrequency: data.payFrequency || "annual",
-    isSalaryPublic: data.isSalaryPublic !== undefined ? data.isSalaryPublic : true,
+    isSalaryPublic: data.isSalaryPublic ?? true,
     equityRange: data.equityRange || null,
     bonusStructure: data.bonusStructure || null,
     relocationAssistance: data.relocationAssistance || null,
     targetStartDate: data.targetStartDate || null,
-    status,
     summary: data.summary || "",
-    responsibilities: data.responsibilities || data.summary || "",
+    responsibilities: data.responsibilities || "",
     requirements: data.requirements || "",
     niceToHave: data.niceToHave || "",
     aboutTeam: data.aboutTeam || "",
@@ -217,6 +216,7 @@ export async function createJob(data: {
     skills: data.skills || [],
     secondarySkills: data.secondarySkills || [],
     customQuestions: data.customQuestions || [],
+    status,
     publishedAt: status === "published" ? new Date() : null,
     createdAt: new Date(),
     updatedAt: new Date(),
@@ -251,7 +251,7 @@ export async function updateJob(
     bonusStructure: string | null;
     relocationAssistance: string | null;
     targetStartDate: Date | null;
-    status: "draft" | "published" | "on_hold" | "closed";
+    status: string;
     summary: string;
     responsibilities: string;
     requirements: string;

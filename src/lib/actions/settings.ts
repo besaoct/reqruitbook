@@ -10,12 +10,18 @@ import {
   employmentTypes,
   experienceLevels,
   educationLevels,
+  currencies,
+  payFrequencies,
+  jobStatuses,
+  interviewTypes,
+  benefitCategories,
   users,
 } from "@/db/schema";
 import { eq, desc } from "drizzle-orm";
 import { getCurrentUser } from "@/lib/auth/session";
 import { assertPermission, type UserRole } from "@/lib/auth/rbac";
 import { hashPassword } from "@/lib/auth/password";
+import { recordAuditLog } from "@/lib/security/audit";
 
 export async function getOrganizationSettings() {
   try {
@@ -615,9 +621,527 @@ export async function deleteEducationLevel(id: string) {
 
   await db.delete(educationLevels).where(eq(educationLevels.id, id));
 
+  await recordAuditLog({
+    actorId: user.id,
+    action: "master.education_level_deleted",
+    entityType: "education_level",
+    entityId: id,
+  });
+
   revalidatePath("/settings");
   revalidatePath("/jobs");
   return { success: true };
 }
+
+/* -------------------------------------------------------------------------- */
+/* CURRENCIES MASTER                                                          */
+/* -------------------------------------------------------------------------- */
+
+export async function getCurrencies() {
+  try {
+    return await db.select().from(currencies).orderBy(desc(currencies.isDefault), currencies.code);
+  } catch (error) {
+    console.error("Failed to fetch currencies:", error);
+    return [];
+  }
+}
+
+export async function createCurrency(data: {
+  code: string;
+  symbol: string;
+  name: string;
+  isDefault?: boolean;
+}) {
+  const user = await getCurrentUser();
+  if (!user) throw new Error("Unauthenticated");
+  assertPermission(user.role, "canManageSettings", user.permissions);
+
+  const newId = `curr_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+  const code = data.code.toUpperCase().trim();
+
+  await db.insert(currencies).values({
+    id: newId,
+    orgId: "org_my_organisation",
+    code,
+    symbol: data.symbol.trim(),
+    name: data.name.trim(),
+    isDefault: data.isDefault || false,
+    createdAt: new Date(),
+  });
+
+  await recordAuditLog({
+    actorId: user.id,
+    action: "master.currency_created",
+    entityType: "currency",
+    entityId: newId,
+    metadata: { code, symbol: data.symbol, name: data.name },
+  });
+
+  revalidatePath("/settings");
+  revalidatePath("/jobs");
+  revalidatePath("/offers");
+  return { success: true, id: newId };
+}
+
+export async function updateCurrency(
+  id: string,
+  data: { code?: string; symbol?: string; name?: string; isDefault?: boolean }
+) {
+  const user = await getCurrentUser();
+  if (!user) throw new Error("Unauthenticated");
+  assertPermission(user.role, "canManageSettings", user.permissions);
+
+  await db
+    .update(currencies)
+    .set({
+      ...(data.code && { code: data.code.toUpperCase().trim() }),
+      ...(data.symbol && { symbol: data.symbol.trim() }),
+      ...(data.name && { name: data.name.trim() }),
+      ...(data.isDefault !== undefined && { isDefault: data.isDefault }),
+    })
+    .where(eq(currencies.id, id));
+
+  await recordAuditLog({
+    actorId: user.id,
+    action: "master.currency_updated",
+    entityType: "currency",
+    entityId: id,
+    metadata: data,
+  });
+
+  revalidatePath("/settings");
+  revalidatePath("/jobs");
+  revalidatePath("/offers");
+  return { success: true };
+}
+
+export async function deleteCurrency(id: string) {
+  const user = await getCurrentUser();
+  if (!user) throw new Error("Unauthenticated");
+  assertPermission(user.role, "canManageSettings", user.permissions);
+
+  await db.delete(currencies).where(eq(currencies.id, id));
+
+  await recordAuditLog({
+    actorId: user.id,
+    action: "master.currency_deleted",
+    entityType: "currency",
+    entityId: id,
+  });
+
+  revalidatePath("/settings");
+  revalidatePath("/jobs");
+  revalidatePath("/offers");
+  return { success: true };
+}
+
+/* -------------------------------------------------------------------------- */
+/* PAY FREQUENCIES MASTER                                                     */
+/* -------------------------------------------------------------------------- */
+
+export async function getPayFrequencies() {
+  try {
+    return await db.select().from(payFrequencies).orderBy(desc(payFrequencies.isDefault), payFrequencies.name);
+  } catch (error) {
+    console.error("Failed to fetch pay frequencies:", error);
+    return [];
+  }
+}
+
+export async function createPayFrequency(data: {
+  name: string;
+  slug?: string;
+  description?: string;
+  isDefault?: boolean;
+}) {
+  const user = await getCurrentUser();
+  if (!user) throw new Error("Unauthenticated");
+  assertPermission(user.role, "canManageSettings", user.permissions);
+
+  const slug = (data.slug || data.name).toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+  const newId = `freq_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+
+  await db.insert(payFrequencies).values({
+    id: newId,
+    orgId: "org_my_organisation",
+    name: data.name.trim(),
+    slug: slug || `freq_${Date.now()}`,
+    description: data.description?.trim() || null,
+    isDefault: data.isDefault || false,
+    createdAt: new Date(),
+  });
+
+  await recordAuditLog({
+    actorId: user.id,
+    action: "master.pay_frequency_created",
+    entityType: "pay_frequency",
+    entityId: newId,
+    metadata: { name: data.name, slug },
+  });
+
+  revalidatePath("/settings");
+  revalidatePath("/jobs");
+  revalidatePath("/offers");
+  return { success: true, id: newId };
+}
+
+export async function updatePayFrequency(
+  id: string,
+  data: { name?: string; slug?: string; description?: string; isDefault?: boolean }
+) {
+  const user = await getCurrentUser();
+  if (!user) throw new Error("Unauthenticated");
+  assertPermission(user.role, "canManageSettings", user.permissions);
+
+  await db
+    .update(payFrequencies)
+    .set({
+      ...(data.name && { name: data.name.trim() }),
+      ...(data.slug && { slug: data.slug.toLowerCase().trim() }),
+      ...(data.description !== undefined && { description: data.description?.trim() || null }),
+      ...(data.isDefault !== undefined && { isDefault: data.isDefault }),
+    })
+    .where(eq(payFrequencies.id, id));
+
+  await recordAuditLog({
+    actorId: user.id,
+    action: "master.pay_frequency_updated",
+    entityType: "pay_frequency",
+    entityId: id,
+    metadata: data,
+  });
+
+  revalidatePath("/settings");
+  revalidatePath("/jobs");
+  revalidatePath("/offers");
+  return { success: true };
+}
+
+export async function deletePayFrequency(id: string) {
+  const user = await getCurrentUser();
+  if (!user) throw new Error("Unauthenticated");
+  assertPermission(user.role, "canManageSettings", user.permissions);
+
+  await db.delete(payFrequencies).where(eq(payFrequencies.id, id));
+
+  await recordAuditLog({
+    actorId: user.id,
+    action: "master.pay_frequency_deleted",
+    entityType: "pay_frequency",
+    entityId: id,
+  });
+
+  revalidatePath("/settings");
+  revalidatePath("/jobs");
+  revalidatePath("/offers");
+  return { success: true };
+}
+
+/* -------------------------------------------------------------------------- */
+/* REQUISITION / JOB STATUSES MASTER                                          */
+/* -------------------------------------------------------------------------- */
+
+export async function getJobStatuses() {
+  try {
+    return await db.select().from(jobStatuses).orderBy(desc(jobStatuses.isDefault), jobStatuses.name);
+  } catch (error) {
+    console.error("Failed to fetch job statuses:", error);
+    return [];
+  }
+}
+
+export async function createJobStatus(data: {
+  name: string;
+  slug?: string;
+  badgeVariant?: string;
+  description?: string;
+  isDefault?: boolean;
+}) {
+  const user = await getCurrentUser();
+  if (!user) throw new Error("Unauthenticated");
+  assertPermission(user.role, "canManageSettings", user.permissions);
+
+  const slug = (data.slug || data.name).toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+  const newId = `status_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+
+  await db.insert(jobStatuses).values({
+    id: newId,
+    orgId: "org_my_organisation",
+    name: data.name.trim(),
+    slug: slug || `status_${Date.now()}`,
+    badgeVariant: data.badgeVariant?.trim() || "secondary",
+    description: data.description?.trim() || null,
+    isDefault: data.isDefault || false,
+    createdAt: new Date(),
+  });
+
+  await recordAuditLog({
+    actorId: user.id,
+    action: "master.job_status_created",
+    entityType: "job_status",
+    entityId: newId,
+    metadata: { name: data.name, slug, badgeVariant: data.badgeVariant },
+  });
+
+  revalidatePath("/settings");
+  revalidatePath("/jobs");
+  return { success: true, id: newId };
+}
+
+export async function updateJobStatus(
+  id: string,
+  data: { name?: string; slug?: string; badgeVariant?: string; description?: string; isDefault?: boolean }
+) {
+  const user = await getCurrentUser();
+  if (!user) throw new Error("Unauthenticated");
+  assertPermission(user.role, "canManageSettings", user.permissions);
+
+  await db
+    .update(jobStatuses)
+    .set({
+      ...(data.name && { name: data.name.trim() }),
+      ...(data.slug && { slug: data.slug.toLowerCase().trim() }),
+      ...(data.badgeVariant && { badgeVariant: data.badgeVariant.trim() }),
+      ...(data.description !== undefined && { description: data.description?.trim() || null }),
+      ...(data.isDefault !== undefined && { isDefault: data.isDefault }),
+    })
+    .where(eq(jobStatuses.id, id));
+
+  await recordAuditLog({
+    actorId: user.id,
+    action: "master.job_status_updated",
+    entityType: "job_status",
+    entityId: id,
+    metadata: data,
+  });
+
+  revalidatePath("/settings");
+  revalidatePath("/jobs");
+  return { success: true };
+}
+
+export async function deleteJobStatus(id: string) {
+  const user = await getCurrentUser();
+  if (!user) throw new Error("Unauthenticated");
+  assertPermission(user.role, "canManageSettings", user.permissions);
+
+  await db.delete(jobStatuses).where(eq(jobStatuses.id, id));
+
+  await recordAuditLog({
+    actorId: user.id,
+    action: "master.job_status_deleted",
+    entityType: "job_status",
+    entityId: id,
+  });
+
+  revalidatePath("/settings");
+  revalidatePath("/jobs");
+  return { success: true };
+}
+
+/* -------------------------------------------------------------------------- */
+/* INTERVIEW ROUND TYPES MASTER                                               */
+/* -------------------------------------------------------------------------- */
+
+export async function getInterviewTypes() {
+  try {
+    return await db.select().from(interviewTypes).orderBy(desc(interviewTypes.isDefault), interviewTypes.name);
+  } catch (error) {
+    console.error("Failed to fetch interview types:", error);
+    return [];
+  }
+}
+
+export async function createInterviewType(data: {
+  name: string;
+  slug?: string;
+  defaultDurationMinutes?: number;
+  description?: string;
+  isDefault?: boolean;
+}) {
+  const user = await getCurrentUser();
+  if (!user) throw new Error("Unauthenticated");
+  assertPermission(user.role, "canManageSettings", user.permissions);
+
+  const slug = (data.slug || data.name).toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+  const newId = `itype_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+
+  await db.insert(interviewTypes).values({
+    id: newId,
+    orgId: "org_my_organisation",
+    name: data.name.trim(),
+    slug: slug || `itype_${Date.now()}`,
+    defaultDurationMinutes: data.defaultDurationMinutes || 45,
+    description: data.description?.trim() || null,
+    isDefault: data.isDefault || false,
+    createdAt: new Date(),
+  });
+
+  await recordAuditLog({
+    actorId: user.id,
+    action: "master.interview_type_created",
+    entityType: "interview_type",
+    entityId: newId,
+    metadata: { name: data.name, slug, duration: data.defaultDurationMinutes },
+  });
+
+  revalidatePath("/settings");
+  revalidatePath("/interviews");
+  revalidatePath("/jobs");
+  return { success: true, id: newId };
+}
+
+export async function updateInterviewType(
+  id: string,
+  data: { name?: string; slug?: string; defaultDurationMinutes?: number; description?: string; isDefault?: boolean }
+) {
+  const user = await getCurrentUser();
+  if (!user) throw new Error("Unauthenticated");
+  assertPermission(user.role, "canManageSettings", user.permissions);
+
+  await db
+    .update(interviewTypes)
+    .set({
+      ...(data.name && { name: data.name.trim() }),
+      ...(data.slug && { slug: data.slug.toLowerCase().trim() }),
+      ...(data.defaultDurationMinutes !== undefined && { defaultDurationMinutes: data.defaultDurationMinutes }),
+      ...(data.description !== undefined && { description: data.description?.trim() || null }),
+      ...(data.isDefault !== undefined && { isDefault: data.isDefault }),
+    })
+    .where(eq(interviewTypes.id, id));
+
+  await recordAuditLog({
+    actorId: user.id,
+    action: "master.interview_type_updated",
+    entityType: "interview_type",
+    entityId: id,
+    metadata: data,
+  });
+
+  revalidatePath("/settings");
+  revalidatePath("/interviews");
+  revalidatePath("/jobs");
+  return { success: true };
+}
+
+export async function deleteInterviewType(id: string) {
+  const user = await getCurrentUser();
+  if (!user) throw new Error("Unauthenticated");
+  assertPermission(user.role, "canManageSettings", user.permissions);
+
+  await db.delete(interviewTypes).where(eq(interviewTypes.id, id));
+
+  await recordAuditLog({
+    actorId: user.id,
+    action: "master.interview_type_deleted",
+    entityType: "interview_type",
+    entityId: id,
+  });
+
+  revalidatePath("/settings");
+  revalidatePath("/interviews");
+  revalidatePath("/jobs");
+  return { success: true };
+}
+
+/* -------------------------------------------------------------------------- */
+/* BENEFIT CATEGORIES MASTER                                                  */
+/* -------------------------------------------------------------------------- */
+
+export async function getBenefitCategories() {
+  try {
+    return await db.select().from(benefitCategories).orderBy(desc(benefitCategories.isDefault), benefitCategories.name);
+  } catch (error) {
+    console.error("Failed to fetch benefit categories:", error);
+    return [];
+  }
+}
+
+export async function createBenefitCategory(data: {
+  name: string;
+  slug?: string;
+  description?: string;
+  isDefault?: boolean;
+}) {
+  const user = await getCurrentUser();
+  if (!user) throw new Error("Unauthenticated");
+  assertPermission(user.role, "canManageSettings", user.permissions);
+
+  const slug = (data.slug || data.name).toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+  const newId = `bcat_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+
+  await db.insert(benefitCategories).values({
+    id: newId,
+    orgId: "org_my_organisation",
+    name: data.name.trim(),
+    slug: slug || `bcat_${Date.now()}`,
+    description: data.description?.trim() || null,
+    isDefault: data.isDefault || false,
+    createdAt: new Date(),
+  });
+
+  await recordAuditLog({
+    actorId: user.id,
+    action: "master.benefit_category_created",
+    entityType: "benefit_category",
+    entityId: newId,
+    metadata: { name: data.name, slug },
+  });
+
+  revalidatePath("/settings");
+  revalidatePath("/jobs");
+  return { success: true, id: newId };
+}
+
+export async function updateBenefitCategory(
+  id: string,
+  data: { name?: string; slug?: string; description?: string; isDefault?: boolean }
+) {
+  const user = await getCurrentUser();
+  if (!user) throw new Error("Unauthenticated");
+  assertPermission(user.role, "canManageSettings", user.permissions);
+
+  await db
+    .update(benefitCategories)
+    .set({
+      ...(data.name && { name: data.name.trim() }),
+      ...(data.slug && { slug: data.slug.toLowerCase().trim() }),
+      ...(data.description !== undefined && { description: data.description?.trim() || null }),
+      ...(data.isDefault !== undefined && { isDefault: data.isDefault }),
+    })
+    .where(eq(benefitCategories.id, id));
+
+  await recordAuditLog({
+    actorId: user.id,
+    action: "master.benefit_category_updated",
+    entityType: "benefit_category",
+    entityId: id,
+    metadata: data,
+  });
+
+  revalidatePath("/settings");
+  revalidatePath("/jobs");
+  return { success: true };
+}
+
+export async function deleteBenefitCategory(id: string) {
+  const user = await getCurrentUser();
+  if (!user) throw new Error("Unauthenticated");
+  assertPermission(user.role, "canManageSettings", user.permissions);
+
+  await db.delete(benefitCategories).where(eq(benefitCategories.id, id));
+
+  await recordAuditLog({
+    actorId: user.id,
+    action: "master.benefit_category_deleted",
+    entityType: "benefit_category",
+    entityId: id,
+  });
+
+  revalidatePath("/settings");
+  revalidatePath("/jobs");
+  return { success: true };
+}
+
 
 

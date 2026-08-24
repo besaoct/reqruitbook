@@ -44,6 +44,11 @@ import {
   X,
   ChevronLeft,
   ChevronRight,
+  Coins,
+  Clock,
+  CalendarDays,
+  Layers,
+  Tag,
 } from "lucide-react";
 import {
   Dialog,
@@ -85,6 +90,26 @@ import {
   createEducationLevel,
   updateEducationLevel,
   deleteEducationLevel,
+  getCurrencies,
+  createCurrency,
+  updateCurrency,
+  deleteCurrency,
+  getPayFrequencies,
+  createPayFrequency,
+  updatePayFrequency,
+  deletePayFrequency,
+  getJobStatuses,
+  createJobStatus,
+  updateJobStatus,
+  deleteJobStatus,
+  getInterviewTypes,
+  createInterviewType,
+  updateInterviewType,
+  deleteInterviewType,
+  getBenefitCategories,
+  createBenefitCategory,
+  updateBenefitCategory,
+  deleteBenefitCategory,
 } from "@/lib/actions/settings";
 import {
   TableShell,
@@ -125,6 +150,11 @@ function SettingsContent() {
     if (tab === "rbac" || tab === "permissions") return "rbac";
     if (tab === "departments") return "departments";
     if (tab === "locations") return "locations";
+    if (tab === "currencies" || tab === "currency") return "currencies";
+    if (tab === "pay-frequencies" || tab === "pay_frequencies" || tab === "pay-frequency") return "pay-frequencies";
+    if (tab === "job-statuses" || tab === "job_statuses" || tab === "requisition-statuses") return "job-statuses";
+    if (tab === "interview-types" || tab === "interview_types" || tab === "rounds") return "interview-types";
+    if (tab === "benefit-categories" || tab === "benefit_categories" || tab === "benefits") return "benefit-categories";
     if (tab === "work-modes" || tab === "work_modes") return "work-modes";
     if (tab === "employment-types" || tab === "employment_types") return "employment-types";
     if (tab === "experience-levels" || tab === "experience_levels") return "experience-levels";
@@ -140,6 +170,11 @@ function SettingsContent() {
   const canViewUsers = isSuperAdmin || hasPermission("canManageUsers") || canManageRBAC;
   const canViewDepts = isSuperAdmin || hasPermission("canManageDepartments") || hasPermission("canManageSettings");
   const canViewLocations = isSuperAdmin || hasPermission("canManageLocations") || hasPermission("canManageSettings");
+  const canViewCurrencies = isSuperAdmin || hasPermission("canManageSettings");
+  const canViewPayFrequencies = isSuperAdmin || hasPermission("canManageSettings");
+  const canViewJobStatuses = isSuperAdmin || hasPermission("canManageSettings");
+  const canViewInterviewTypes = isSuperAdmin || hasPermission("canManageSettings");
+  const canViewBenefitCategories = isSuperAdmin || hasPermission("canManageSettings");
   const canViewWorkModes = isSuperAdmin || hasPermission("canManageWorkModes") || hasPermission("canManageSettings");
   const canViewEmpTypes = isSuperAdmin || hasPermission("canManageEmploymentTypes") || hasPermission("canManageSettings");
   const canViewExpLevels = isSuperAdmin || hasPermission("canManageExperienceLevels") || hasPermission("canManageSettings");
@@ -151,6 +186,11 @@ function SettingsContent() {
       if (canViewCompany) setActiveTab("company");
       else if (canViewDepts) setActiveTab("departments");
       else if (canViewLocations) setActiveTab("locations");
+      else if (canViewCurrencies) setActiveTab("currencies");
+      else if (canViewPayFrequencies) setActiveTab("pay-frequencies");
+      else if (canViewJobStatuses) setActiveTab("job-statuses");
+      else if (canViewInterviewTypes) setActiveTab("interview-types");
+      else if (canViewBenefitCategories) setActiveTab("benefit-categories");
       else if (canViewWorkModes) setActiveTab("work-modes");
       else if (canViewEmpTypes) setActiveTab("employment-types");
       else if (canViewExpLevels) setActiveTab("experience-levels");
@@ -166,6 +206,11 @@ function SettingsContent() {
     canViewCompany,
     canViewDepts,
     canViewLocations,
+    canViewCurrencies,
+    canViewPayFrequencies,
+    canViewJobStatuses,
+    canViewInterviewTypes,
+    canViewBenefitCategories,
     canViewWorkModes,
     canViewEmpTypes,
     canViewExpLevels,
@@ -181,6 +226,11 @@ function SettingsContent() {
   const [rolesList, setRolesList] = useState<RoleWithUsers[]>([]);
   const [departments, setDepartments] = useState<any[]>([]);
   const [locations, setLocations] = useState<any[]>([]);
+  const [currenciesList, setCurrenciesList] = useState<any[]>([]);
+  const [payFrequenciesList, setPayFrequenciesList] = useState<any[]>([]);
+  const [jobStatusesList, setJobStatusesList] = useState<any[]>([]);
+  const [interviewTypesList, setInterviewTypesList] = useState<any[]>([]);
+  const [benefitCategoriesList, setBenefitCategoriesList] = useState<any[]>([]);
   const [workModesList, setWorkModesList] = useState<any[]>([]);
   const [employmentTypesList, setEmploymentTypesList] = useState<any[]>([]);
   const [experienceLevelsList, setExperienceLevelsList] = useState<any[]>([]);
@@ -191,6 +241,7 @@ function SettingsContent() {
   const [orgName, setOrgName] = useState("");
   const [careersDomain, setCareersDomain] = useState("careers.myorganisation.com");
   const [timezone, setTimezone] = useState("America/Los_Angeles");
+  const [defaultCurrency, setDefaultCurrency] = useState("USD");
   const [isSavingOrg, setIsSavingOrg] = useState(false);
 
   // Create Role Modal
@@ -233,6 +284,90 @@ function SettingsContent() {
   const [newLocCity, setNewLocCity] = useState("");
   const [newLocCountry, setNewLocCountry] = useState("United States");
   const [isCreatingLoc, setIsCreatingLoc] = useState(false);
+
+  // Add Currency Modal
+  const [currencyModalOpen, setCurrencyModalOpen] = useState(false);
+  const [newCurrCode, setNewCurrCode] = useState("");
+  const [newCurrSymbol, setNewCurrSymbol] = useState("");
+  const [newCurrName, setNewCurrName] = useState("");
+  const [newCurrDefault, setNewCurrDefault] = useState(false);
+  const [isCreatingCurrency, setIsCreatingCurrency] = useState(false);
+
+  // Edit Currency Modal
+  const [editingCurrency, setEditingCurrency] = useState<any>(null);
+  const [editCurrCode, setEditCurrCode] = useState("");
+  const [editCurrSymbol, setEditCurrSymbol] = useState("");
+  const [editCurrName, setEditCurrName] = useState("");
+  const [editCurrDefault, setEditCurrDefault] = useState(false);
+  const [isUpdatingCurrency, setIsUpdatingCurrency] = useState(false);
+
+  // Add Pay Frequency Modal
+  const [payFreqModalOpen, setPayFreqModalOpen] = useState(false);
+  const [newPayFreqName, setNewPayFreqName] = useState("");
+  const [newPayFreqSlug, setNewPayFreqSlug] = useState("");
+  const [newPayFreqDesc, setNewPayFreqDesc] = useState("");
+  const [newPayFreqDefault, setNewPayFreqDefault] = useState(false);
+  const [isCreatingPayFreq, setIsCreatingPayFreq] = useState(false);
+
+  // Edit Pay Frequency Modal
+  const [editingPayFreq, setEditingPayFreq] = useState<any>(null);
+  const [editPayFreqName, setEditPayFreqName] = useState("");
+  const [editPayFreqSlug, setEditPayFreqSlug] = useState("");
+  const [editPayFreqDesc, setEditPayFreqDesc] = useState("");
+  const [editPayFreqDefault, setEditPayFreqDefault] = useState(false);
+  const [isUpdatingPayFreq, setIsUpdatingPayFreq] = useState(false);
+
+  // Add Requisition Status Modal
+  const [jobStatusModalOpen, setJobStatusModalOpen] = useState(false);
+  const [newStatusName, setNewStatusName] = useState("");
+  const [newStatusSlug, setNewStatusSlug] = useState("");
+  const [newStatusBadge, setNewStatusBadge] = useState("secondary");
+  const [newStatusDesc, setNewStatusDesc] = useState("");
+  const [newStatusDefault, setNewStatusDefault] = useState(false);
+  const [isCreatingJobStatus, setIsCreatingJobStatus] = useState(false);
+
+  // Edit Requisition Status Modal
+  const [editingJobStatus, setEditingJobStatus] = useState<any>(null);
+  const [editStatusName, setEditStatusName] = useState("");
+  const [editStatusSlug, setEditStatusSlug] = useState("");
+  const [editStatusBadge, setEditStatusBadge] = useState("secondary");
+  const [editStatusDesc, setEditStatusDesc] = useState("");
+  const [editStatusDefault, setEditStatusDefault] = useState(false);
+  const [isUpdatingJobStatus, setIsUpdatingJobStatus] = useState(false);
+
+  // Add Interview Type Modal
+  const [interviewTypeModalOpen, setInterviewTypeModalOpen] = useState(false);
+  const [newITypeName, setNewITypeName] = useState("");
+  const [newITypeSlug, setNewITypeSlug] = useState("");
+  const [newITypeDuration, setNewITypeDuration] = useState(45);
+  const [newITypeDesc, setNewITypeDesc] = useState("");
+  const [newITypeDefault, setNewITypeDefault] = useState(false);
+  const [isCreatingInterviewType, setIsCreatingInterviewType] = useState(false);
+
+  // Edit Interview Type Modal
+  const [editingInterviewType, setEditingInterviewType] = useState<any>(null);
+  const [editITypeName, setEditITypeName] = useState("");
+  const [editITypeSlug, setEditITypeSlug] = useState("");
+  const [editITypeDuration, setEditITypeDuration] = useState(45);
+  const [editITypeDesc, setEditITypeDesc] = useState("");
+  const [editITypeDefault, setEditITypeDefault] = useState(false);
+  const [isUpdatingInterviewType, setIsUpdatingInterviewType] = useState(false);
+
+  // Add Benefit Category Modal
+  const [benefitCatModalOpen, setBenefitCatModalOpen] = useState(false);
+  const [newBCatName, setNewBCatName] = useState("");
+  const [newBCatSlug, setNewBCatSlug] = useState("");
+  const [newBCatDesc, setNewBCatDesc] = useState("");
+  const [newBCatDefault, setNewBCatDefault] = useState(false);
+  const [isCreatingBenefitCat, setIsCreatingBenefitCat] = useState(false);
+
+  // Edit Benefit Category Modal
+  const [editingBenefitCat, setEditingBenefitCat] = useState<any>(null);
+  const [editBCatName, setEditBCatName] = useState("");
+  const [editBCatSlug, setEditBCatSlug] = useState("");
+  const [editBCatDesc, setEditBCatDesc] = useState("");
+  const [editBCatDefault, setEditBCatDefault] = useState(false);
+  const [isUpdatingBenefitCat, setIsUpdatingBenefitCat] = useState(false);
 
   // Add Work Mode Modal
   const [workModeModalOpen, setWorkModeModalOpen] = useState(false);
@@ -307,12 +442,32 @@ function SettingsContent() {
   const loadAll = async () => {
     setLoading(true);
     try {
-      const [orgData, uList, rList, dList, lList, wmList, etList, expList, eduList] = await Promise.all([
+      const [
+        orgData,
+        uList,
+        rList,
+        dList,
+        lList,
+        currList,
+        freqList,
+        statusList,
+        iTypeList,
+        bCatList,
+        wmList,
+        etList,
+        expList,
+        eduList,
+      ] = await Promise.all([
         getOrganizationSettings(),
         getUsers(),
         getRoles(),
         getDepartments(),
         getLocations(),
+        getCurrencies(),
+        getPayFrequencies(),
+        getJobStatuses(),
+        getInterviewTypes(),
+        getBenefitCategories(),
         getWorkModes(),
         getEmploymentTypes(),
         getExperienceLevels(),
@@ -323,11 +478,17 @@ function SettingsContent() {
         setOrgName(orgData.name || "My Organisation");
         setCareersDomain(orgData.careersDomain || "careers.myorganisation.com");
         setTimezone(orgData.timezone || "America/Los_Angeles");
+        setDefaultCurrency(orgData.defaultCurrency || "USD");
       }
       setUsersList(uList);
       setRolesList(rList);
       setDepartments(dList);
       setLocations(lList);
+      setCurrenciesList(currList);
+      setPayFrequenciesList(freqList);
+      setJobStatusesList(statusList);
+      setInterviewTypesList(iTypeList);
+      setBenefitCategoriesList(bCatList);
       setWorkModesList(wmList);
       setEmploymentTypesList(etList);
       setExperienceLevelsList(expList);
@@ -394,6 +555,7 @@ function SettingsContent() {
         name: orgName,
         careersDomain,
         timezone,
+        defaultCurrency,
       });
       toast.success("Organization details saved!");
       await loadAll();
@@ -985,6 +1147,373 @@ function SettingsContent() {
     }
   };
 
+  // ---------------------------------------------------------------------------
+  // CURRENCIES CRUD HANDLERS
+  // ---------------------------------------------------------------------------
+  const handleCreateCurrency = async () => {
+    if (!newCurrCode.trim() || !newCurrSymbol.trim() || !newCurrName.trim()) {
+      toast.error("Please provide currency code, symbol, and name");
+      return;
+    }
+    setIsCreatingCurrency(true);
+    try {
+      await createCurrency({
+        code: newCurrCode.trim().toUpperCase(),
+        symbol: newCurrSymbol.trim(),
+        name: newCurrName.trim(),
+        isDefault: newCurrDefault,
+      });
+      toast.success(`Currency "${newCurrCode.toUpperCase()}" added`);
+      setCurrencyModalOpen(false);
+      setNewCurrCode("");
+      setNewCurrSymbol("");
+      setNewCurrName("");
+      setNewCurrDefault(false);
+      await loadAll();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to add currency");
+    } finally {
+      setIsCreatingCurrency(false);
+    }
+  };
+
+  const handleOpenEditCurrency = (curr: any) => {
+    setEditingCurrency(curr);
+    setEditCurrCode(curr.code);
+    setEditCurrSymbol(curr.symbol);
+    setEditCurrName(curr.name);
+    setEditCurrDefault(curr.isDefault || false);
+  };
+
+  const handleSaveEditCurrency = async () => {
+    if (!editingCurrency || !editCurrCode.trim() || !editCurrSymbol.trim() || !editCurrName.trim()) {
+      toast.error("Please provide currency code, symbol, and name");
+      return;
+    }
+    setIsUpdatingCurrency(true);
+    try {
+      await updateCurrency(editingCurrency.id, {
+        code: editCurrCode.trim().toUpperCase(),
+        symbol: editCurrSymbol.trim(),
+        name: editCurrName.trim(),
+        isDefault: editCurrDefault,
+      });
+      toast.success("Currency updated successfully");
+      setEditingCurrency(null);
+      await loadAll();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to update currency");
+    } finally {
+      setIsUpdatingCurrency(false);
+    }
+  };
+
+  const handleDeleteCurrency = async (id: string, code: string) => {
+    if (!confirm(`Permanently remove currency "${code}"?`)) return;
+    try {
+      await deleteCurrency(id);
+      toast.success(`Removed currency: ${code}`);
+      await loadAll();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to delete currency");
+    }
+  };
+
+  // ---------------------------------------------------------------------------
+  // PAY FREQUENCIES CRUD HANDLERS
+  // ---------------------------------------------------------------------------
+  const handleCreatePayFreq = async () => {
+    if (!newPayFreqName.trim()) {
+      toast.error("Please enter a pay frequency name");
+      return;
+    }
+    setIsCreatingPayFreq(true);
+    try {
+      await createPayFrequency({
+        name: newPayFreqName.trim(),
+        slug: newPayFreqSlug.trim() || undefined,
+        description: newPayFreqDesc.trim() || undefined,
+        isDefault: newPayFreqDefault,
+      });
+      toast.success(`Pay frequency "${newPayFreqName}" added`);
+      setPayFreqModalOpen(false);
+      setNewPayFreqName("");
+      setNewPayFreqSlug("");
+      setNewPayFreqDesc("");
+      setNewPayFreqDefault(false);
+      await loadAll();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to add pay frequency");
+    } finally {
+      setIsCreatingPayFreq(false);
+    }
+  };
+
+  const handleOpenEditPayFreq = (freq: any) => {
+    setEditingPayFreq(freq);
+    setEditPayFreqName(freq.name);
+    setEditPayFreqSlug(freq.slug);
+    setEditPayFreqDesc(freq.description || "");
+    setEditPayFreqDefault(freq.isDefault || false);
+  };
+
+  const handleSaveEditPayFreq = async () => {
+    if (!editingPayFreq || !editPayFreqName.trim()) {
+      toast.error("Please enter a pay frequency name");
+      return;
+    }
+    setIsUpdatingPayFreq(true);
+    try {
+      await updatePayFrequency(editingPayFreq.id, {
+        name: editPayFreqName.trim(),
+        slug: editPayFreqSlug.trim() || undefined,
+        description: editPayFreqDesc.trim() || undefined,
+        isDefault: editPayFreqDefault,
+      });
+      toast.success("Pay frequency updated successfully");
+      setEditingPayFreq(null);
+      await loadAll();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to update pay frequency");
+    } finally {
+      setIsUpdatingPayFreq(false);
+    }
+  };
+
+  const handleDeletePayFreq = async (id: string, name: string) => {
+    if (!confirm(`Permanently remove pay frequency "${name}"?`)) return;
+    try {
+      await deletePayFrequency(id);
+      toast.success(`Removed pay frequency: ${name}`);
+      await loadAll();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to delete pay frequency");
+    }
+  };
+
+  // ---------------------------------------------------------------------------
+  // JOB STATUSES CRUD HANDLERS
+  // ---------------------------------------------------------------------------
+  const handleCreateJobStatus = async () => {
+    if (!newStatusName.trim()) {
+      toast.error("Please enter a requisition status name");
+      return;
+    }
+    setIsCreatingJobStatus(true);
+    try {
+      await createJobStatus({
+        name: newStatusName.trim(),
+        slug: newStatusSlug.trim() || undefined,
+        badgeVariant: newStatusBadge,
+        description: newStatusDesc.trim() || undefined,
+        isDefault: newStatusDefault,
+      });
+      toast.success(`Requisition status "${newStatusName}" added`);
+      setJobStatusModalOpen(false);
+      setNewStatusName("");
+      setNewStatusSlug("");
+      setNewStatusDesc("");
+      setNewStatusDefault(false);
+      await loadAll();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to add requisition status");
+    } finally {
+      setIsCreatingJobStatus(false);
+    }
+  };
+
+  const handleOpenEditJobStatus = (status: any) => {
+    setEditingJobStatus(status);
+    setEditStatusName(status.name);
+    setEditStatusSlug(status.slug);
+    setEditStatusBadge(status.badgeVariant || "secondary");
+    setEditStatusDesc(status.description || "");
+    setEditStatusDefault(status.isDefault || false);
+  };
+
+  const handleSaveEditJobStatus = async () => {
+    if (!editingJobStatus || !editStatusName.trim()) {
+      toast.error("Please enter a status name");
+      return;
+    }
+    setIsUpdatingJobStatus(true);
+    try {
+      await updateJobStatus(editingJobStatus.id, {
+        name: editStatusName.trim(),
+        slug: editStatusSlug.trim() || undefined,
+        badgeVariant: editStatusBadge,
+        description: editStatusDesc.trim() || undefined,
+        isDefault: editStatusDefault,
+      });
+      toast.success("Requisition status updated successfully");
+      setEditingJobStatus(null);
+      await loadAll();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to update requisition status");
+    } finally {
+      setIsUpdatingJobStatus(false);
+    }
+  };
+
+  const handleDeleteJobStatus = async (id: string, name: string) => {
+    if (!confirm(`Permanently remove requisition status "${name}"?`)) return;
+    try {
+      await deleteJobStatus(id);
+      toast.success(`Removed requisition status: ${name}`);
+      await loadAll();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to delete requisition status");
+    }
+  };
+
+  // ---------------------------------------------------------------------------
+  // INTERVIEW ROUND TYPES CRUD HANDLERS
+  // ---------------------------------------------------------------------------
+  const handleCreateInterviewType = async () => {
+    if (!newITypeName.trim()) {
+      toast.error("Please enter an interview round type name");
+      return;
+    }
+    setIsCreatingInterviewType(true);
+    try {
+      await createInterviewType({
+        name: newITypeName.trim(),
+        slug: newITypeSlug.trim() || undefined,
+        defaultDurationMinutes: Number(newITypeDuration) || 45,
+        description: newITypeDesc.trim() || undefined,
+        isDefault: newITypeDefault,
+      });
+      toast.success(`Interview type "${newITypeName}" added`);
+      setInterviewTypeModalOpen(false);
+      setNewITypeName("");
+      setNewITypeSlug("");
+      setNewITypeDuration(45);
+      setNewITypeDesc("");
+      setNewITypeDefault(false);
+      await loadAll();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to add interview type");
+    } finally {
+      setIsCreatingInterviewType(false);
+    }
+  };
+
+  const handleOpenEditInterviewType = (itype: any) => {
+    setEditingInterviewType(itype);
+    setEditITypeName(itype.name);
+    setEditITypeSlug(itype.slug);
+    setEditITypeDuration(itype.defaultDurationMinutes || 45);
+    setEditITypeDesc(itype.description || "");
+    setEditITypeDefault(itype.isDefault || false);
+  };
+
+  const handleSaveEditInterviewType = async () => {
+    if (!editingInterviewType || !editITypeName.trim()) {
+      toast.error("Please enter an interview type name");
+      return;
+    }
+    setIsUpdatingInterviewType(true);
+    try {
+      await updateInterviewType(editingInterviewType.id, {
+        name: editITypeName.trim(),
+        slug: editITypeSlug.trim() || undefined,
+        defaultDurationMinutes: Number(editITypeDuration) || 45,
+        description: editITypeDesc.trim() || undefined,
+        isDefault: editITypeDefault,
+      });
+      toast.success("Interview round type updated successfully");
+      setEditingInterviewType(null);
+      await loadAll();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to update interview type");
+    } finally {
+      setIsUpdatingInterviewType(false);
+    }
+  };
+
+  const handleDeleteInterviewType = async (id: string, name: string) => {
+    if (!confirm(`Permanently remove interview round type "${name}"?`)) return;
+    try {
+      await deleteInterviewType(id);
+      toast.success(`Removed interview round type: ${name}`);
+      await loadAll();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to delete interview round type");
+    }
+  };
+
+  // ---------------------------------------------------------------------------
+  // BENEFIT CATEGORIES CRUD HANDLERS
+  // ---------------------------------------------------------------------------
+  const handleCreateBenefitCat = async () => {
+    if (!newBCatName.trim()) {
+      toast.error("Please enter a benefit category name");
+      return;
+    }
+    setIsCreatingBenefitCat(true);
+    try {
+      await createBenefitCategory({
+        name: newBCatName.trim(),
+        slug: newBCatSlug.trim() || undefined,
+        description: newBCatDesc.trim() || undefined,
+        isDefault: newBCatDefault,
+      });
+      toast.success(`Benefit category "${newBCatName}" added`);
+      setBenefitCatModalOpen(false);
+      setNewBCatName("");
+      setNewBCatSlug("");
+      setNewBCatDesc("");
+      setNewBCatDefault(false);
+      await loadAll();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to add benefit category");
+    } finally {
+      setIsCreatingBenefitCat(false);
+    }
+  };
+
+  const handleOpenEditBenefitCat = (bcat: any) => {
+    setEditingBenefitCat(bcat);
+    setEditBCatName(bcat.name);
+    setEditBCatSlug(bcat.slug);
+    setEditBCatDesc(bcat.description || "");
+    setEditBCatDefault(bcat.isDefault || false);
+  };
+
+  const handleSaveEditBenefitCat = async () => {
+    if (!editingBenefitCat || !editBCatName.trim()) {
+      toast.error("Please enter a benefit category name");
+      return;
+    }
+    setIsUpdatingBenefitCat(true);
+    try {
+      await updateBenefitCategory(editingBenefitCat.id, {
+        name: editBCatName.trim(),
+        slug: editBCatSlug.trim() || undefined,
+        description: editBCatDesc.trim() || undefined,
+        isDefault: editBCatDefault,
+      });
+      toast.success("Benefit category updated successfully");
+      setEditingBenefitCat(null);
+      await loadAll();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to update benefit category");
+    } finally {
+      setIsUpdatingBenefitCat(false);
+    }
+  };
+
+  const handleDeleteBenefitCat = async (id: string, name: string) => {
+    if (!confirm(`Permanently remove benefit category "${name}"?`)) return;
+    try {
+      await deleteBenefitCategory(id);
+      toast.success(`Removed benefit category: ${name}`);
+      await loadAll();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to delete benefit category");
+    }
+  };
+
   const embedCodeSnippet = `// 1. Host Application React Microfrontend Import
 import { ReqruitBookEmbedContainer, CandidatePipelineEmbed } from "@reqruitbook/embed-sdk";
 
@@ -1072,6 +1601,36 @@ export function HostHrmRecruitmentView() {
                   Locations ({locations.length})
                 </TabsTrigger>
               )}
+              {canViewCurrencies && (
+                <TabsTrigger value="currencies" className="flex items-center gap-1.5 shrink-0 whitespace-nowrap">
+                  <Coins className="size-3.5 text-copper" />
+                  <span>Currencies ({currenciesList.length})</span>
+                </TabsTrigger>
+              )}
+              {canViewPayFrequencies && (
+                <TabsTrigger value="pay-frequencies" className="flex items-center gap-1.5 shrink-0 whitespace-nowrap">
+                  <Clock className="size-3.5 text-copper" />
+                  <span>Pay Frequencies ({payFrequenciesList.length})</span>
+                </TabsTrigger>
+              )}
+              {canViewJobStatuses && (
+                <TabsTrigger value="job-statuses" className="flex items-center gap-1.5 shrink-0 whitespace-nowrap">
+                  <Tag className="size-3.5 text-copper" />
+                  <span>Requisition Statuses ({jobStatusesList.length})</span>
+                </TabsTrigger>
+              )}
+              {canViewInterviewTypes && (
+                <TabsTrigger value="interview-types" className="flex items-center gap-1.5 shrink-0 whitespace-nowrap">
+                  <CalendarDays className="size-3.5 text-copper" />
+                  <span>Interview Rounds ({interviewTypesList.length})</span>
+                </TabsTrigger>
+              )}
+              {canViewBenefitCategories && (
+                <TabsTrigger value="benefit-categories" className="flex items-center gap-1.5 shrink-0 whitespace-nowrap">
+                  <Layers className="size-3.5 text-copper" />
+                  <span>Benefit Categories ({benefitCategoriesList.length})</span>
+                </TabsTrigger>
+              )}
               {canViewWorkModes && (
                 <TabsTrigger value="work-modes" className="shrink-0 whitespace-nowrap">
                   Work Modes ({workModesList.length})
@@ -1155,6 +1714,25 @@ export function HostHrmRecruitmentView() {
                     onChange={(e) => setTimezone(e.target.value)}
                     className="h-8 text-xs"
                   />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="field-label">Default Reporting Currency</label>
+                  <select
+                    value={defaultCurrency}
+                    onChange={(e) => setDefaultCurrency(e.target.value)}
+                    className="h-8 w-full rounded-xs border border-border bg-card px-2.5 text-xs text-foreground focus:border-ring"
+                  >
+                    {currenciesList.length === 0 ? (
+                      <option value="USD">USD ($)</option>
+                    ) : (
+                      currenciesList.map((c) => (
+                        <option key={c.id} value={c.code}>
+                          {c.code} — {c.name}
+                        </option>
+                      ))
+                    )}
+                  </select>
                 </div>
 
                 <div className="pt-2">
@@ -1683,6 +2261,410 @@ export function HostHrmRecruitmentView() {
                                 size="xs"
                                 variant="ghost"
                                 onClick={() => handleDeleteLoc(loc.id, loc.name)}
+                                className="h-7 w-7 p-0 text-destructive/70 hover:text-destructive"
+                              >
+                                <Trash2 className="size-3.5" />
+                              </Button>
+                            </div>
+                          </RoleGuard>
+                        </TD>
+                      </TR>
+                    ))
+                  )}
+                </TBody>
+              </DTable>
+            </TableShell>
+          </TabsContent>
+        )}
+
+        {/* 5a. CURRENCIES MASTER */}
+        {canViewCurrencies && (
+          <TabsContent value="currencies" className="space-y-4 w-full max-w-full min-w-0">
+            <div className="flex items-center justify-between">
+              <div className="text-xs text-muted-foreground">
+                Configure global transaction and compensation currencies used across job requisitions and candidate offer letters.
+              </div>
+              <RoleGuard permission="canManageSettings">
+                <Button
+                  size="sm"
+                  variant="accent"
+                  onClick={() => setCurrencyModalOpen(true)}
+                  className="gap-1 text-xs"
+                >
+                  <Plus className="size-3.5" />
+                  <span>Add Currency</span>
+                </Button>
+              </RoleGuard>
+            </div>
+
+            <TableShell>
+              <DTable>
+                <THead>
+                  <TH>Currency Code</TH>
+                  <TH>Symbol</TH>
+                  <TH>Full Name</TH>
+                  <TH>Default Status</TH>
+                  <TH align="right">Actions</TH>
+                </THead>
+                <TBody>
+                  {currenciesList.length === 0 ? (
+                    <EmptyRow colSpan={5}>No currencies found.</EmptyRow>
+                  ) : (
+                    currenciesList.map((c) => (
+                      <TR key={c.id}>
+                        <TD mono>
+                          <span className="font-semibold text-xs text-foreground uppercase">{c.code}</span>
+                        </TD>
+                        <TD>
+                          <Badge variant="outline" className="text-[11px] font-bold border-copper/30 text-copper">
+                            {c.symbol}
+                          </Badge>
+                        </TD>
+                        <TD>
+                          <span className="text-xs text-foreground font-medium">{c.name}</span>
+                        </TD>
+                        <TD>
+                          {c.isDefault ? (
+                            <Badge variant="soft-success" className="text-[10px]">
+                              Default Base
+                            </Badge>
+                          ) : (
+                            <span className="text-[11px] text-muted-foreground">—</span>
+                          )}
+                        </TD>
+                        <TD align="right">
+                          <RoleGuard permission="canManageSettings">
+                            <div className="flex items-center justify-end gap-1">
+                              <Button
+                                size="xs"
+                                variant="ghost"
+                                onClick={() => handleOpenEditCurrency(c)}
+                                className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
+                              >
+                                <Edit2 className="size-3.5" />
+                              </Button>
+                              <Button
+                                size="xs"
+                                variant="ghost"
+                                onClick={() => handleDeleteCurrency(c.id, c.code)}
+                                className="h-7 w-7 p-0 text-destructive/70 hover:text-destructive"
+                              >
+                                <Trash2 className="size-3.5" />
+                              </Button>
+                            </div>
+                          </RoleGuard>
+                        </TD>
+                      </TR>
+                    ))
+                  )}
+                </TBody>
+              </DTable>
+            </TableShell>
+          </TabsContent>
+        )}
+
+        {/* 5b. PAY FREQUENCIES MASTER */}
+        {canViewPayFrequencies && (
+          <TabsContent value="pay-frequencies" className="space-y-4 w-full max-w-full min-w-0">
+            <div className="flex items-center justify-between">
+              <div className="text-xs text-muted-foreground">
+                Define payroll and salary frequency intervals (e.g. Annual, Monthly, Hourly, Bi-Weekly) for compensation packaging.
+              </div>
+              <RoleGuard permission="canManageSettings">
+                <Button
+                  size="sm"
+                  variant="accent"
+                  onClick={() => setPayFreqModalOpen(true)}
+                  className="gap-1 text-xs"
+                >
+                  <Plus className="size-3.5" />
+                  <span>Add Pay Frequency</span>
+                </Button>
+              </RoleGuard>
+            </div>
+
+            <TableShell>
+              <DTable>
+                <THead>
+                  <TH>Pay Frequency</TH>
+                  <TH>Slug / Code</TH>
+                  <TH>Description</TH>
+                  <TH>Default</TH>
+                  <TH align="right">Actions</TH>
+                </THead>
+                <TBody>
+                  {payFrequenciesList.length === 0 ? (
+                    <EmptyRow colSpan={5}>No pay frequencies found.</EmptyRow>
+                  ) : (
+                    payFrequenciesList.map((f) => (
+                      <TR key={f.id}>
+                        <TD>
+                          <span className="font-semibold text-xs text-foreground">{f.name}</span>
+                        </TD>
+                        <TD mono>
+                          <Badge variant="outline" className="text-[10px] border-copper/30 text-copper">
+                            {f.slug}
+                          </Badge>
+                        </TD>
+                        <TD className="text-muted-foreground">{f.description || "—"}</TD>
+                        <TD>
+                          {f.isDefault ? (
+                            <Badge variant="soft-success" className="text-[10px]">
+                              Default
+                            </Badge>
+                          ) : (
+                            <span className="text-[11px] text-muted-foreground">—</span>
+                          )}
+                        </TD>
+                        <TD align="right">
+                          <RoleGuard permission="canManageSettings">
+                            <div className="flex items-center justify-end gap-1">
+                              <Button
+                                size="xs"
+                                variant="ghost"
+                                onClick={() => handleOpenEditPayFreq(f)}
+                                className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
+                              >
+                                <Edit2 className="size-3.5" />
+                              </Button>
+                              <Button
+                                size="xs"
+                                variant="ghost"
+                                onClick={() => handleDeletePayFreq(f.id, f.name)}
+                                className="h-7 w-7 p-0 text-destructive/70 hover:text-destructive"
+                              >
+                                <Trash2 className="size-3.5" />
+                              </Button>
+                            </div>
+                          </RoleGuard>
+                        </TD>
+                      </TR>
+                    ))
+                  )}
+                </TBody>
+              </DTable>
+            </TableShell>
+          </TabsContent>
+        )}
+
+        {/* 5c. REQUISITION STATUSES MASTER */}
+        {canViewJobStatuses && (
+          <TabsContent value="job-statuses" className="space-y-4 w-full max-w-full min-w-0">
+            <div className="flex items-center justify-between">
+              <div className="text-xs text-muted-foreground">
+                Manage requisition workflow lifecycle states and their visual badge styling across hiring pipelines.
+              </div>
+              <RoleGuard permission="canManageSettings">
+                <Button
+                  size="sm"
+                  variant="accent"
+                  onClick={() => setJobStatusModalOpen(true)}
+                  className="gap-1 text-xs"
+                >
+                  <Plus className="size-3.5" />
+                  <span>Add Requisition Status</span>
+                </Button>
+              </RoleGuard>
+            </div>
+
+            <TableShell>
+              <DTable>
+                <THead>
+                  <TH>Status Name</TH>
+                  <TH>Slug / Code</TH>
+                  <TH>Badge Styling</TH>
+                  <TH>Description</TH>
+                  <TH align="right">Actions</TH>
+                </THead>
+                <TBody>
+                  {jobStatusesList.length === 0 ? (
+                    <EmptyRow colSpan={5}>No requisition statuses found.</EmptyRow>
+                  ) : (
+                    jobStatusesList.map((s) => (
+                      <TR key={s.id}>
+                        <TD>
+                          <span className="font-semibold text-xs text-foreground">{s.name}</span>
+                        </TD>
+                        <TD mono>
+                          <Badge variant="outline" className="text-[10px] border-copper/30 text-copper">
+                            {s.slug}
+                          </Badge>
+                        </TD>
+                        <TD>
+                          <Badge variant={(s.badgeVariant as any) || "secondary"} className="text-[10px]">
+                            {s.name}
+                          </Badge>
+                        </TD>
+                        <TD className="text-muted-foreground">{s.description || "—"}</TD>
+                        <TD align="right">
+                          <RoleGuard permission="canManageSettings">
+                            <div className="flex items-center justify-end gap-1">
+                              <Button
+                                size="xs"
+                                variant="ghost"
+                                onClick={() => handleOpenEditJobStatus(s)}
+                                className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
+                              >
+                                <Edit2 className="size-3.5" />
+                              </Button>
+                              <Button
+                                size="xs"
+                                variant="ghost"
+                                onClick={() => handleDeleteJobStatus(s.id, s.name)}
+                                className="h-7 w-7 p-0 text-destructive/70 hover:text-destructive"
+                              >
+                                <Trash2 className="size-3.5" />
+                              </Button>
+                            </div>
+                          </RoleGuard>
+                        </TD>
+                      </TR>
+                    ))
+                  )}
+                </TBody>
+              </DTable>
+            </TableShell>
+          </TabsContent>
+        )}
+
+        {/* 5d. INTERVIEW ROUND TYPES MASTER */}
+        {canViewInterviewTypes && (
+          <TabsContent value="interview-types" className="space-y-4 w-full max-w-full min-w-0">
+            <div className="flex items-center justify-between">
+              <div className="text-xs text-muted-foreground">
+                Configure standard interview round templates and default durations for candidate interview scheduling.
+              </div>
+              <RoleGuard permission="canManageSettings">
+                <Button
+                  size="sm"
+                  variant="accent"
+                  onClick={() => setInterviewTypeModalOpen(true)}
+                  className="gap-1 text-xs"
+                >
+                  <Plus className="size-3.5" />
+                  <span>Add Interview Round Type</span>
+                </Button>
+              </RoleGuard>
+            </div>
+
+            <TableShell>
+              <DTable>
+                <THead>
+                  <TH>Round Type Name</TH>
+                  <TH>Slug / Code</TH>
+                  <TH>Default Duration</TH>
+                  <TH>Description</TH>
+                  <TH align="right">Actions</TH>
+                </THead>
+                <TBody>
+                  {interviewTypesList.length === 0 ? (
+                    <EmptyRow colSpan={5}>No interview round types found.</EmptyRow>
+                  ) : (
+                    interviewTypesList.map((t) => (
+                      <TR key={t.id}>
+                        <TD>
+                          <span className="font-semibold text-xs text-foreground">{t.name}</span>
+                        </TD>
+                        <TD mono>
+                          <Badge variant="outline" className="text-[10px] border-copper/30 text-copper">
+                            {t.slug}
+                          </Badge>
+                        </TD>
+                        <TD>
+                          <span className="text-xs text-foreground font-medium">
+                            {t.defaultDurationMinutes || 45} mins
+                          </span>
+                        </TD>
+                        <TD className="text-muted-foreground">{t.description || "—"}</TD>
+                        <TD align="right">
+                          <RoleGuard permission="canManageSettings">
+                            <div className="flex items-center justify-end gap-1">
+                              <Button
+                                size="xs"
+                                variant="ghost"
+                                onClick={() => handleOpenEditInterviewType(t)}
+                                className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
+                              >
+                                <Edit2 className="size-3.5" />
+                              </Button>
+                              <Button
+                                size="xs"
+                                variant="ghost"
+                                onClick={() => handleDeleteInterviewType(t.id, t.name)}
+                                className="h-7 w-7 p-0 text-destructive/70 hover:text-destructive"
+                              >
+                                <Trash2 className="size-3.5" />
+                              </Button>
+                            </div>
+                          </RoleGuard>
+                        </TD>
+                      </TR>
+                    ))
+                  )}
+                </TBody>
+              </DTable>
+            </TableShell>
+          </TabsContent>
+        )}
+
+        {/* 5e. BENEFIT CATEGORIES MASTER */}
+        {canViewBenefitCategories && (
+          <TabsContent value="benefit-categories" className="space-y-4 w-full max-w-full min-w-0">
+            <div className="flex items-center justify-between">
+              <div className="text-xs text-muted-foreground">
+                Manage company perk and benefit taxonomy categories (e.g. Healthcare, Financial, Paid Time Off, Growth).
+              </div>
+              <RoleGuard permission="canManageSettings">
+                <Button
+                  size="sm"
+                  variant="accent"
+                  onClick={() => setBenefitCatModalOpen(true)}
+                  className="gap-1 text-xs"
+                >
+                  <Plus className="size-3.5" />
+                  <span>Add Benefit Category</span>
+                </Button>
+              </RoleGuard>
+            </div>
+
+            <TableShell>
+              <DTable>
+                <THead>
+                  <TH>Category Name</TH>
+                  <TH>Slug / Code</TH>
+                  <TH>Description</TH>
+                  <TH align="right">Actions</TH>
+                </THead>
+                <TBody>
+                  {benefitCategoriesList.length === 0 ? (
+                    <EmptyRow colSpan={4}>No benefit categories found.</EmptyRow>
+                  ) : (
+                    benefitCategoriesList.map((b) => (
+                      <TR key={b.id}>
+                        <TD>
+                          <span className="font-semibold text-xs text-foreground">{b.name}</span>
+                        </TD>
+                        <TD mono>
+                          <Badge variant="outline" className="text-[10px] border-copper/30 text-copper">
+                            {b.slug}
+                          </Badge>
+                        </TD>
+                        <TD className="text-muted-foreground">{b.description || "—"}</TD>
+                        <TD align="right">
+                          <RoleGuard permission="canManageSettings">
+                            <div className="flex items-center justify-end gap-1">
+                              <Button
+                                size="xs"
+                                variant="ghost"
+                                onClick={() => handleOpenEditBenefitCat(b)}
+                                className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
+                              >
+                                <Edit2 className="size-3.5" />
+                              </Button>
+                              <Button
+                                size="xs"
+                                variant="ghost"
+                                onClick={() => handleDeleteBenefitCat(b.id, b.name)}
                                 className="h-7 w-7 p-0 text-destructive/70 hover:text-destructive"
                               >
                                 <Trash2 className="size-3.5" />
@@ -3102,6 +4084,674 @@ export function HostHrmRecruitmentView() {
               className="gap-1"
             >
               {isUpdatingEduLevel ? <Loader2 className="size-3 animate-spin" /> : null}
+              <span>Save Changes</span>
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* --------------------------------------------------------------------- */}
+      {/* 1. ADD CURRENCY MODAL */}
+      {/* --------------------------------------------------------------------- */}
+      <Dialog open={currencyModalOpen} onOpenChange={setCurrencyModalOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="text-base font-semibold">Add Currency Master</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2 text-xs">
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1">
+                <label className="field-label">Currency Code *</label>
+                <Input
+                  value={newCurrCode}
+                  onChange={(e) => {
+                    setNewCurrCode(e.target.value);
+                    if (!newCurrName) setNewCurrName(`${e.target.value.toUpperCase()} (${newCurrSymbol || "$"})`);
+                  }}
+                  placeholder="e.g. JPY"
+                  className="h-8 text-xs uppercase"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="field-label">Symbol *</label>
+                <Input
+                  value={newCurrSymbol}
+                  onChange={(e) => {
+                    setNewCurrSymbol(e.target.value);
+                    if (newCurrCode) setNewCurrName(`${newCurrCode.toUpperCase()} (${e.target.value})`);
+                  }}
+                  placeholder="e.g. ¥"
+                  className="h-8 text-xs"
+                />
+              </div>
+            </div>
+            <div className="space-y-1">
+              <label className="field-label">Display Name *</label>
+              <Input
+                value={newCurrName}
+                onChange={(e) => setNewCurrName(e.target.value)}
+                placeholder="e.g. Japanese Yen (¥)"
+                className="h-8 text-xs"
+              />
+            </div>
+            <div className="flex items-center gap-2 pt-1">
+              <input
+                type="checkbox"
+                id="newCurrDefaultCheck"
+                checked={newCurrDefault}
+                onChange={(e) => setNewCurrDefault(e.target.checked)}
+                className="rounded text-copper focus:ring-copper"
+              />
+              <label htmlFor="newCurrDefaultCheck" className="text-xs text-foreground cursor-pointer">
+                Set as Default Base Currency
+              </label>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button size="xs" variant="outline" onClick={() => setCurrencyModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              size="xs"
+              variant="accent"
+              disabled={isCreatingCurrency}
+              onClick={handleCreateCurrency}
+              className="gap-1"
+            >
+              {isCreatingCurrency ? <Loader2 className="size-3 animate-spin" /> : null}
+              <span>Save &amp; Create</span>
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* EDIT CURRENCY MODAL */}
+      <Dialog open={!!editingCurrency} onOpenChange={(open) => !open && setEditingCurrency(null)}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="text-base font-semibold">Edit Currency Master</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2 text-xs">
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1">
+                <label className="field-label">Currency Code *</label>
+                <Input
+                  value={editCurrCode}
+                  onChange={(e) => setEditCurrCode(e.target.value)}
+                  placeholder="e.g. USD"
+                  className="h-8 text-xs uppercase"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="field-label">Symbol *</label>
+                <Input
+                  value={editCurrSymbol}
+                  onChange={(e) => setEditCurrSymbol(e.target.value)}
+                  placeholder="e.g. $"
+                  className="h-8 text-xs"
+                />
+              </div>
+            </div>
+            <div className="space-y-1">
+              <label className="field-label">Display Name *</label>
+              <Input
+                value={editCurrName}
+                onChange={(e) => setEditCurrName(e.target.value)}
+                placeholder="e.g. US Dollar ($)"
+                className="h-8 text-xs"
+              />
+            </div>
+            <div className="flex items-center gap-2 pt-1">
+              <input
+                type="checkbox"
+                id="editCurrDefaultCheck"
+                checked={editCurrDefault}
+                onChange={(e) => setEditCurrDefault(e.target.checked)}
+                className="rounded text-copper focus:ring-copper"
+              />
+              <label htmlFor="editCurrDefaultCheck" className="text-xs text-foreground cursor-pointer">
+                Set as Default Base Currency
+              </label>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button size="xs" variant="outline" onClick={() => setEditingCurrency(null)}>
+              Cancel
+            </Button>
+            <Button
+              size="xs"
+              variant="accent"
+              disabled={isUpdatingCurrency}
+              onClick={handleSaveEditCurrency}
+              className="gap-1"
+            >
+              {isUpdatingCurrency ? <Loader2 className="size-3 animate-spin" /> : null}
+              <span>Save Changes</span>
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* --------------------------------------------------------------------- */}
+      {/* 2. ADD PAY FREQUENCY MODAL */}
+      {/* --------------------------------------------------------------------- */}
+      <Dialog open={payFreqModalOpen} onOpenChange={setPayFreqModalOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="text-base font-semibold">Add Pay Frequency</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2 text-xs">
+            <div className="space-y-1">
+              <label className="field-label">Frequency Name *</label>
+              <Input
+                value={newPayFreqName}
+                onChange={(e) => {
+                  setNewPayFreqName(e.target.value);
+                  if (!newPayFreqSlug) {
+                    setNewPayFreqSlug(
+                      e.target.value.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "")
+                    );
+                  }
+                }}
+                placeholder="e.g. Bi-Weekly Pay"
+                className="h-8 text-xs"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="field-label">Identifier Slug</label>
+              <Input
+                value={newPayFreqSlug}
+                onChange={(e) => setNewPayFreqSlug(e.target.value)}
+                placeholder="e.g. bi_weekly"
+                className="h-8 text-xs"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="field-label">Description</label>
+              <Input
+                value={newPayFreqDesc}
+                onChange={(e) => setNewPayFreqDesc(e.target.value)}
+                placeholder="e.g. Disbursed 26 times per year"
+                className="h-8 text-xs"
+              />
+            </div>
+            <div className="flex items-center gap-2 pt-1">
+              <input
+                type="checkbox"
+                id="newPayFreqDefaultCheck"
+                checked={newPayFreqDefault}
+                onChange={(e) => setNewPayFreqDefault(e.target.checked)}
+                className="rounded text-copper focus:ring-copper"
+              />
+              <label htmlFor="newPayFreqDefaultCheck" className="text-xs text-foreground cursor-pointer">
+                Set as Default Frequency
+              </label>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button size="xs" variant="outline" onClick={() => setPayFreqModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              size="xs"
+              variant="accent"
+              disabled={isCreatingPayFreq}
+              onClick={handleCreatePayFreq}
+              className="gap-1"
+            >
+              {isCreatingPayFreq ? <Loader2 className="size-3 animate-spin" /> : null}
+              <span>Save &amp; Create</span>
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* EDIT PAY FREQUENCY MODAL */}
+      <Dialog open={!!editingPayFreq} onOpenChange={(open) => !open && setEditingPayFreq(null)}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="text-base font-semibold">Edit Pay Frequency</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2 text-xs">
+            <div className="space-y-1">
+              <label className="field-label">Frequency Name *</label>
+              <Input
+                value={editPayFreqName}
+                onChange={(e) => setEditPayFreqName(e.target.value)}
+                className="h-8 text-xs"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="field-label">Identifier Slug</label>
+              <Input
+                value={editPayFreqSlug}
+                onChange={(e) => setEditPayFreqSlug(e.target.value)}
+                className="h-8 text-xs"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="field-label">Description</label>
+              <Input
+                value={editPayFreqDesc}
+                onChange={(e) => setEditPayFreqDesc(e.target.value)}
+                className="h-8 text-xs"
+              />
+            </div>
+            <div className="flex items-center gap-2 pt-1">
+              <input
+                type="checkbox"
+                id="editPayFreqDefaultCheck"
+                checked={editPayFreqDefault}
+                onChange={(e) => setEditPayFreqDefault(e.target.checked)}
+                className="rounded text-copper focus:ring-copper"
+              />
+              <label htmlFor="editPayFreqDefaultCheck" className="text-xs text-foreground cursor-pointer">
+                Set as Default Frequency
+              </label>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button size="xs" variant="outline" onClick={() => setEditingPayFreq(null)}>
+              Cancel
+            </Button>
+            <Button
+              size="xs"
+              variant="accent"
+              disabled={isUpdatingPayFreq}
+              onClick={handleSaveEditPayFreq}
+              className="gap-1"
+            >
+              {isUpdatingPayFreq ? <Loader2 className="size-3 animate-spin" /> : null}
+              <span>Save Changes</span>
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* --------------------------------------------------------------------- */}
+      {/* 3. ADD REQUISITION STATUS MODAL */}
+      {/* --------------------------------------------------------------------- */}
+      <Dialog open={jobStatusModalOpen} onOpenChange={setJobStatusModalOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="text-base font-semibold">Add Requisition Status</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2 text-xs">
+            <div className="space-y-1">
+              <label className="field-label">Status Name *</label>
+              <Input
+                value={newStatusName}
+                onChange={(e) => {
+                  setNewStatusName(e.target.value);
+                  if (!newStatusSlug) {
+                    setNewStatusSlug(
+                      e.target.value.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "")
+                    );
+                  }
+                }}
+                placeholder="e.g. Sourcing Phase"
+                className="h-8 text-xs"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="field-label">Identifier Slug</label>
+              <Input
+                value={newStatusSlug}
+                onChange={(e) => setNewStatusSlug(e.target.value)}
+                placeholder="e.g. sourcing"
+                className="h-8 text-xs"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="field-label">Badge Color Variant</label>
+              <select
+                value={newStatusBadge}
+                onChange={(e) => setNewStatusBadge(e.target.value)}
+                className="h-8 w-full rounded-xs border border-border bg-card px-2 text-xs text-foreground"
+              >
+                <option value="soft-success">Green (Active / Open / Live)</option>
+                <option value="secondary">Gray (Draft / Preparation)</option>
+                <option value="warning">Amber (On Hold / Paused)</option>
+                <option value="destructive">Red (Closed / Cancelled)</option>
+              </select>
+            </div>
+            <div className="space-y-1">
+              <label className="field-label">Description</label>
+              <Input
+                value={newStatusDesc}
+                onChange={(e) => setNewStatusDesc(e.target.value)}
+                placeholder="e.g. Active outbound candidate search"
+                className="h-8 text-xs"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button size="xs" variant="outline" onClick={() => setJobStatusModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              size="xs"
+              variant="accent"
+              disabled={isCreatingJobStatus}
+              onClick={handleCreateJobStatus}
+              className="gap-1"
+            >
+              {isCreatingJobStatus ? <Loader2 className="size-3 animate-spin" /> : null}
+              <span>Save &amp; Create</span>
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* EDIT REQUISITION STATUS MODAL */}
+      <Dialog open={!!editingJobStatus} onOpenChange={(open) => !open && setEditingJobStatus(null)}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="text-base font-semibold">Edit Requisition Status</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2 text-xs">
+            <div className="space-y-1">
+              <label className="field-label">Status Name *</label>
+              <Input
+                value={editStatusName}
+                onChange={(e) => setEditStatusName(e.target.value)}
+                className="h-8 text-xs"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="field-label">Identifier Slug</label>
+              <Input
+                value={editStatusSlug}
+                onChange={(e) => setEditStatusSlug(e.target.value)}
+                className="h-8 text-xs"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="field-label">Badge Color Variant</label>
+              <select
+                value={editStatusBadge}
+                onChange={(e) => setEditStatusBadge(e.target.value)}
+                className="h-8 w-full rounded-xs border border-border bg-card px-2 text-xs text-foreground"
+              >
+                <option value="soft-success">Green (Active / Open / Live)</option>
+                <option value="secondary">Gray (Draft / Preparation)</option>
+                <option value="warning">Amber (On Hold / Paused)</option>
+                <option value="destructive">Red (Closed / Cancelled)</option>
+              </select>
+            </div>
+            <div className="space-y-1">
+              <label className="field-label">Description</label>
+              <Input
+                value={editStatusDesc}
+                onChange={(e) => setEditStatusDesc(e.target.value)}
+                className="h-8 text-xs"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button size="xs" variant="outline" onClick={() => setEditingJobStatus(null)}>
+              Cancel
+            </Button>
+            <Button
+              size="xs"
+              variant="accent"
+              disabled={isUpdatingJobStatus}
+              onClick={handleSaveEditJobStatus}
+              className="gap-1"
+            >
+              {isUpdatingJobStatus ? <Loader2 className="size-3 animate-spin" /> : null}
+              <span>Save Changes</span>
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* --------------------------------------------------------------------- */}
+      {/* 4. ADD INTERVIEW TYPE MODAL */}
+      {/* --------------------------------------------------------------------- */}
+      <Dialog open={interviewTypeModalOpen} onOpenChange={setInterviewTypeModalOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="text-base font-semibold">Add Interview Round Type</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2 text-xs">
+            <div className="space-y-1">
+              <label className="field-label">Round Type Name *</label>
+              <Input
+                value={newITypeName}
+                onChange={(e) => {
+                  setNewITypeName(e.target.value);
+                  if (!newITypeSlug) {
+                    setNewITypeSlug(
+                      e.target.value.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "")
+                    );
+                  }
+                }}
+                placeholder="e.g. Executive Leadership"
+                className="h-8 text-xs"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="field-label">Identifier Slug</label>
+              <Input
+                value={newITypeSlug}
+                onChange={(e) => setNewITypeSlug(e.target.value)}
+                placeholder="e.g. executive"
+                className="h-8 text-xs"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="field-label">Default Duration (Minutes)</label>
+              <select
+                value={newITypeDuration}
+                onChange={(e) => setNewITypeDuration(Number(e.target.value))}
+                className="h-8 w-full rounded-xs border border-border bg-card px-2 text-xs text-foreground"
+              >
+                <option value={30}>30 Minutes</option>
+                <option value={45}>45 Minutes</option>
+                <option value={60}>60 Minutes</option>
+                <option value={90}>90 Minutes</option>
+                <option value={120}>120 Minutes</option>
+              </select>
+            </div>
+            <div className="space-y-1">
+              <label className="field-label">Description</label>
+              <Input
+                value={newITypeDesc}
+                onChange={(e) => setNewITypeDesc(e.target.value)}
+                placeholder="e.g. Core values, cultural alignment and final review"
+                className="h-8 text-xs"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button size="xs" variant="outline" onClick={() => setInterviewTypeModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              size="xs"
+              variant="accent"
+              disabled={isCreatingInterviewType}
+              onClick={handleCreateInterviewType}
+              className="gap-1"
+            >
+              {isCreatingInterviewType ? <Loader2 className="size-3 animate-spin" /> : null}
+              <span>Save &amp; Create</span>
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* EDIT INTERVIEW TYPE MODAL */}
+      <Dialog open={!!editingInterviewType} onOpenChange={(open) => !open && setEditingInterviewType(null)}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="text-base font-semibold">Edit Interview Round Type</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2 text-xs">
+            <div className="space-y-1">
+              <label className="field-label">Round Type Name *</label>
+              <Input
+                value={editITypeName}
+                onChange={(e) => setEditITypeName(e.target.value)}
+                className="h-8 text-xs"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="field-label">Identifier Slug</label>
+              <Input
+                value={editITypeSlug}
+                onChange={(e) => setEditITypeSlug(e.target.value)}
+                className="h-8 text-xs"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="field-label">Default Duration (Minutes)</label>
+              <select
+                value={editITypeDuration}
+                onChange={(e) => setEditITypeDuration(Number(e.target.value))}
+                className="h-8 w-full rounded-xs border border-border bg-card px-2 text-xs text-foreground"
+              >
+                <option value={30}>30 Minutes</option>
+                <option value={45}>45 Minutes</option>
+                <option value={60}>60 Minutes</option>
+                <option value={90}>90 Minutes</option>
+                <option value={120}>120 Minutes</option>
+              </select>
+            </div>
+            <div className="space-y-1">
+              <label className="field-label">Description</label>
+              <Input
+                value={editITypeDesc}
+                onChange={(e) => setEditITypeDesc(e.target.value)}
+                className="h-8 text-xs"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button size="xs" variant="outline" onClick={() => setEditingInterviewType(null)}>
+              Cancel
+            </Button>
+            <Button
+              size="xs"
+              variant="accent"
+              disabled={isUpdatingInterviewType}
+              onClick={handleSaveEditInterviewType}
+              className="gap-1"
+            >
+              {isUpdatingInterviewType ? <Loader2 className="size-3 animate-spin" /> : null}
+              <span>Save Changes</span>
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* --------------------------------------------------------------------- */}
+      {/* 5. ADD BENEFIT CATEGORY MODAL */}
+      {/* --------------------------------------------------------------------- */}
+      <Dialog open={benefitCatModalOpen} onOpenChange={setBenefitCatModalOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="text-base font-semibold">Add Benefit Category</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2 text-xs">
+            <div className="space-y-1">
+              <label className="field-label">Category Name *</label>
+              <Input
+                value={newBCatName}
+                onChange={(e) => {
+                  setNewBCatName(e.target.value);
+                  if (!newBCatSlug) {
+                    setNewBCatSlug(
+                      e.target.value.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "")
+                    );
+                  }
+                }}
+                placeholder="e.g. Parental Support"
+                className="h-8 text-xs"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="field-label">Identifier Slug</label>
+              <Input
+                value={newBCatSlug}
+                onChange={(e) => setNewBCatSlug(e.target.value)}
+                placeholder="e.g. parental"
+                className="h-8 text-xs"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="field-label">Description</label>
+              <Input
+                value={newBCatDesc}
+                onChange={(e) => setNewBCatDesc(e.target.value)}
+                placeholder="e.g. Family planning, childcare subsidies and leave"
+                className="h-8 text-xs"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button size="xs" variant="outline" onClick={() => setBenefitCatModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              size="xs"
+              variant="accent"
+              disabled={isCreatingBenefitCat}
+              onClick={handleCreateBenefitCat}
+              className="gap-1"
+            >
+              {isCreatingBenefitCat ? <Loader2 className="size-3 animate-spin" /> : null}
+              <span>Save &amp; Create</span>
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* EDIT BENEFIT CATEGORY MODAL */}
+      <Dialog open={!!editingBenefitCat} onOpenChange={(open) => !open && setEditingBenefitCat(null)}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="text-base font-semibold">Edit Benefit Category</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2 text-xs">
+            <div className="space-y-1">
+              <label className="field-label">Category Name *</label>
+              <Input
+                value={editBCatName}
+                onChange={(e) => setEditBCatName(e.target.value)}
+                className="h-8 text-xs"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="field-label">Identifier Slug</label>
+              <Input
+                value={editBCatSlug}
+                onChange={(e) => setEditBCatSlug(e.target.value)}
+                className="h-8 text-xs"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="field-label">Description</label>
+              <Input
+                value={editBCatDesc}
+                onChange={(e) => setEditBCatDesc(e.target.value)}
+                className="h-8 text-xs"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button size="xs" variant="outline" onClick={() => setEditingBenefitCat(null)}>
+              Cancel
+            </Button>
+            <Button
+              size="xs"
+              variant="accent"
+              disabled={isUpdatingBenefitCat}
+              onClick={handleSaveEditBenefitCat}
+              className="gap-1"
+            >
+              {isUpdatingBenefitCat ? <Loader2 className="size-3 animate-spin" /> : null}
               <span>Save Changes</span>
             </Button>
           </DialogFooter>

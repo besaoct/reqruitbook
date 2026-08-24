@@ -26,6 +26,7 @@ import {
 import { toast } from "sonner";
 import { getApplications } from "@/lib/actions/applications";
 import { createOffer } from "@/lib/actions/offers";
+import { getCurrencies } from "@/lib/actions/settings";
 
 function CreateOfferContent() {
   const router = useRouter();
@@ -34,6 +35,8 @@ function CreateOfferContent() {
   const paramApplicationId = searchParams.get("applicationId");
 
   const [applications, setApplications] = useState<any[]>([]);
+  const [currenciesList, setCurrenciesList] = useState<any[]>([]);
+  const [currency, setCurrency] = useState("USD");
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -49,8 +52,13 @@ function CreateOfferContent() {
   useEffect(() => {
     async function load() {
       try {
-        const apps = await getApplications();
+        const [apps, currList] = await Promise.all([
+          getApplications(),
+          getCurrencies(),
+        ]);
         setApplications(apps);
+        setCurrenciesList(currList);
+        if (currList[0]) setCurrency(currList[0].code);
         if (paramApplicationId) {
           setSelectedAppId(paramApplicationId);
           const found = apps.find((a) => a.id === paramApplicationId);
@@ -228,9 +236,24 @@ function CreateOfferContent() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4 text-xs">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="space-y-1.5">
-                <label className="field-label">Annual Base Salary (USD) *</label>
+                <label className="field-label">Currency *</label>
+                <select
+                  value={currency}
+                  onChange={(e) => setCurrency(e.target.value)}
+                  className="h-8 w-full rounded-xs border border-border bg-card px-2.5 text-xs text-foreground focus:border-ring"
+                >
+                  {currenciesList.map((c) => (
+                    <option key={c.id} value={c.code}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="space-y-1.5 sm:col-span-2">
+                <label className="field-label">Annual Base Salary ({currency}) *</label>
                 <Input
                   type="number"
                   value={baseSalary}
@@ -240,7 +263,7 @@ function CreateOfferContent() {
                 />
               </div>
 
-              <div className="space-y-1.5">
+              <div className="space-y-1.5 sm:col-span-3">
                 <label className="field-label">Proposed Joining Date</label>
                 <Input
                   type="date"

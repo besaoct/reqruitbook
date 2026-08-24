@@ -53,6 +53,12 @@ import {
   createExperienceLevel,
   getEducationLevels,
   createEducationLevel,
+  getCurrencies,
+  createCurrency,
+  getPayFrequencies,
+  createPayFrequency,
+  getJobStatuses,
+  createJobStatus,
 } from "@/lib/actions/settings";
 import { RichTextEditor } from "@/components/ui/rich-text-editor";
 import { BenefitsRepeater, BenefitItem, BENEFIT_PRESETS } from "@/components/jobs/benefits-repeater";
@@ -76,11 +82,14 @@ export default function EditJobPage({ params }: EditJobPageProps) {
   const [employmentTypesList, setEmploymentTypesList] = useState<any[]>([]);
   const [experienceLevelsList, setExperienceLevelsList] = useState<any[]>([]);
   const [educationLevelsList, setEducationLevelsList] = useState<any[]>([]);
+  const [currenciesList, setCurrenciesList] = useState<any[]>([]);
+  const [payFrequenciesList, setPayFrequenciesList] = useState<any[]>([]);
+  const [jobStatusesList, setJobStatusesList] = useState<any[]>([]);
 
   // Form State - 1. Role Info & Lifecycle
   const [title, setTitle] = useState("");
   const [reqCode, setReqCode] = useState("");
-  const [status, setStatus] = useState<"draft" | "published" | "on_hold" | "closed">("published");
+  const [status, setStatus] = useState<string>("published");
   const [departmentId, setDepartmentId] = useState("");
   const [locationId, setLocationId] = useState("");
   const [locationText, setLocationText] = useState("");
@@ -155,10 +164,29 @@ export default function EditJobPage({ params }: EditJobPageProps) {
   const [newEduLevelDesc, setNewEduLevelDesc] = useState("");
   const [isAddingEduLevel, setIsAddingEduLevel] = useState(false);
 
+  const [addStatusOpen, setAddStatusOpen] = useState(false);
+  const [newStatusName, setNewStatusName] = useState("");
+  const [newStatusSlug, setNewStatusSlug] = useState("");
+  const [newStatusBadge, setNewStatusBadge] = useState("secondary");
+  const [newStatusDesc, setNewStatusDesc] = useState("");
+  const [isAddingStatus, setIsAddingStatus] = useState(false);
+
+  const [addCurrencyOpen, setAddCurrencyOpen] = useState(false);
+  const [newCurrCode, setNewCurrCode] = useState("");
+  const [newCurrSymbol, setNewCurrSymbol] = useState("");
+  const [newCurrName, setNewCurrName] = useState("");
+  const [isAddingCurrency, setIsAddingCurrency] = useState(false);
+
+  const [addPayFreqOpen, setAddPayFreqOpen] = useState(false);
+  const [newPayFreqName, setNewPayFreqName] = useState("");
+  const [newPayFreqSlug, setNewPayFreqSlug] = useState("");
+  const [newPayFreqDesc, setNewPayFreqDesc] = useState("");
+  const [isAddingPayFreq, setIsAddingPayFreq] = useState(false);
+
   const loadData = async () => {
     setLoading(true);
     try {
-      const [jobData, deptList, locList, wmList, etList, expList, eduList] = await Promise.all([
+      const [jobData, deptList, locList, wmList, etList, expList, eduList, currList, freqList, statusList] = await Promise.all([
         getJobById(jobId),
         getDepartments(),
         getLocations(),
@@ -166,6 +194,9 @@ export default function EditJobPage({ params }: EditJobPageProps) {
         getEmploymentTypes(),
         getExperienceLevels(),
         getEducationLevels(),
+        getCurrencies(),
+        getPayFrequencies(),
+        getJobStatuses(),
       ]);
 
       if (!jobData) {
@@ -180,11 +211,14 @@ export default function EditJobPage({ params }: EditJobPageProps) {
       setEmploymentTypesList(etList);
       setExperienceLevelsList(expList);
       setEducationLevelsList(eduList);
+      setCurrenciesList(currList);
+      setPayFrequenciesList(freqList);
+      setJobStatusesList(statusList);
 
       // Populate Form State
       setTitle(jobData.title || "");
       setReqCode(jobData.reqCode || `REQ-${Math.floor(1000 + Math.random() * 9000)}`);
-      setStatus((jobData.status as any) || "published");
+      setStatus(jobData.status || (statusList[0]?.slug || "published"));
       setDepartmentId(jobData.departmentId || deptList[0]?.id || "");
       setLocationId(jobData.locationId || locList[0]?.id || "");
       setLocationText(jobData.locationText || "");
@@ -430,7 +464,92 @@ export default function EditJobPage({ params }: EditJobPageProps) {
     }
   };
 
-  const handleSave = async (e?: React.FormEvent, overrideStatus?: "draft" | "published" | "on_hold" | "closed") => {
+  const handleQuickAddStatus = async () => {
+    if (!newStatusName.trim()) {
+      toast.error("Please provide status name");
+      return;
+    }
+    setIsAddingStatus(true);
+    try {
+      const slug = (newStatusSlug || newStatusName).toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+      await createJobStatus({
+        name: newStatusName.trim(),
+        slug,
+        badgeVariant: newStatusBadge,
+        description: newStatusDesc.trim() || undefined,
+      });
+      toast.success(`Requisition status "${newStatusName}" added`);
+      setAddStatusOpen(false);
+      setNewStatusName("");
+      setNewStatusSlug("");
+      setNewStatusDesc("");
+      const updated = await getJobStatuses();
+      setJobStatusesList(updated);
+      setStatus(slug);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to add requisition status");
+    } finally {
+      setIsAddingStatus(false);
+    }
+  };
+
+  const handleQuickAddCurrency = async () => {
+    if (!newCurrCode.trim() || !newCurrSymbol.trim() || !newCurrName.trim()) {
+      toast.error("Please provide currency code, symbol, and full name");
+      return;
+    }
+    setIsAddingCurrency(true);
+    try {
+      const code = newCurrCode.trim().toUpperCase();
+      await createCurrency({
+        code,
+        symbol: newCurrSymbol.trim(),
+        name: newCurrName.trim(),
+      });
+      toast.success(`Currency "${code}" added`);
+      setAddCurrencyOpen(false);
+      setNewCurrCode("");
+      setNewCurrSymbol("");
+      setNewCurrName("");
+      const updated = await getCurrencies();
+      setCurrenciesList(updated);
+      setCurrency(code);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to add currency");
+    } finally {
+      setIsAddingCurrency(false);
+    }
+  };
+
+  const handleQuickAddPayFreq = async () => {
+    if (!newPayFreqName.trim()) {
+      toast.error("Please provide pay frequency name");
+      return;
+    }
+    setIsAddingPayFreq(true);
+    try {
+      const slug = (newPayFreqSlug || newPayFreqName).toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+      await createPayFrequency({
+        name: newPayFreqName.trim(),
+        slug,
+        description: newPayFreqDesc.trim() || undefined,
+      });
+      toast.success(`Pay frequency "${newPayFreqName}" added`);
+      setAddPayFreqOpen(false);
+      setNewPayFreqName("");
+      setNewPayFreqSlug("");
+      setNewPayFreqDesc("");
+      const updated = await getPayFrequencies();
+      setPayFrequenciesList(updated);
+      setPayFrequency(slug);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to add pay frequency");
+    } finally {
+      setIsAddingPayFreq(false);
+    }
+  };
+
+  const handleSave = async (e?: React.FormEvent, overrideStatus?: string) => {
     if (e) e.preventDefault();
     if (!title.trim()) {
       toast.error("Please enter a job title");
@@ -593,16 +712,38 @@ export default function EditJobPage({ params }: EditJobPageProps) {
               </div>
 
               <div className="space-y-1.5">
-                <label className="field-label">Requisition Status</label>
+                <div className="flex items-center justify-between">
+                  <label className="field-label">Requisition Status</label>
+                  <RoleGuard permission="canManageSettings">
+                    <button
+                      type="button"
+                      onClick={() => setAddStatusOpen(true)}
+                      className="text-[10px] text-copper hover:underline flex items-center gap-0.5 font-medium cursor-pointer"
+                    >
+                      <Plus className="size-2.5" />
+                      <span>Add New</span>
+                    </button>
+                  </RoleGuard>
+                </div>
                 <select
                   value={status}
-                  onChange={(e) => setStatus(e.target.value as any)}
+                  onChange={(e) => setStatus(e.target.value)}
                   className="h-8 w-full rounded-xs border border-border bg-card px-2.5 text-xs text-foreground focus:border-ring"
                 >
-                  <option value="published">Published (Live on Careers)</option>
-                  <option value="draft">Draft (Internal Only)</option>
-                  <option value="on_hold">On Hold</option>
-                  <option value="closed">Closed / Filled</option>
+                  {jobStatusesList.length === 0 ? (
+                    <>
+                      <option value="published">Published (Live on Careers)</option>
+                      <option value="draft">Draft (Internal Only)</option>
+                      <option value="on_hold">On Hold</option>
+                      <option value="closed">Closed / Filled</option>
+                    </>
+                  ) : (
+                    jobStatusesList.map((s) => (
+                      <option key={s.id} value={s.slug}>
+                        {s.name}
+                      </option>
+                    ))
+                  )}
                 </select>
               </div>
 
@@ -861,32 +1002,76 @@ export default function EditJobPage({ params }: EditJobPageProps) {
           <CardContent className="space-y-4 text-xs">
             <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
               <div className="space-y-1.5">
-                <label className="field-label">Currency</label>
+                <div className="flex items-center justify-between">
+                  <label className="field-label flex items-center gap-1">
+                    <DollarSign className="size-3 text-copper" />
+                    <span>Currency</span>
+                  </label>
+                  <RoleGuard permission="canManageSettings">
+                    <button
+                      type="button"
+                      onClick={() => setAddCurrencyOpen(true)}
+                      className="text-[10px] text-copper hover:underline flex items-center gap-0.5 font-medium cursor-pointer"
+                    >
+                      <Plus className="size-2.5" />
+                      <span>Add New</span>
+                    </button>
+                  </RoleGuard>
+                </div>
                 <select
                   value={currency}
                   onChange={(e) => setCurrency(e.target.value)}
                   className="h-8 w-full rounded-xs border border-border bg-card px-2.5 text-xs text-foreground focus:border-ring"
                 >
-                  <option value="USD">USD ($)</option>
-                  <option value="EUR">EUR (€)</option>
-                  <option value="GBP">GBP (£)</option>
-                  <option value="CAD">CAD ($)</option>
-                  <option value="AUD">AUD ($)</option>
-                  <option value="SGD">SGD ($)</option>
-                  <option value="INR">INR (₹)</option>
+                  {currenciesList.length === 0 ? (
+                    <>
+                      <option value="USD">USD ($)</option>
+                      <option value="EUR">EUR (€)</option>
+                      <option value="GBP">GBP (£)</option>
+                      <option value="INR">INR (₹)</option>
+                    </>
+                  ) : (
+                    currenciesList.map((c) => (
+                      <option key={c.id} value={c.code}>
+                        {c.name}
+                      </option>
+                    ))
+                  )}
                 </select>
               </div>
 
               <div className="space-y-1.5">
-                <label className="field-label">Pay Frequency</label>
+                <div className="flex items-center justify-between">
+                  <label className="field-label">Pay Frequency</label>
+                  <RoleGuard permission="canManageSettings">
+                    <button
+                      type="button"
+                      onClick={() => setAddPayFreqOpen(true)}
+                      className="text-[10px] text-copper hover:underline flex items-center gap-0.5 font-medium cursor-pointer"
+                    >
+                      <Plus className="size-2.5" />
+                      <span>Add New</span>
+                    </button>
+                  </RoleGuard>
+                </div>
                 <select
                   value={payFrequency}
                   onChange={(e) => setPayFrequency(e.target.value)}
                   className="h-8 w-full rounded-xs border border-border bg-card px-2.5 text-xs text-foreground focus:border-ring"
                 >
-                  <option value="annual">Annual Salary</option>
-                  <option value="monthly">Monthly Salary</option>
-                  <option value="hourly">Hourly Rate</option>
+                  {payFrequenciesList.length === 0 ? (
+                    <>
+                      <option value="annual">Annual Salary</option>
+                      <option value="monthly">Monthly Salary</option>
+                      <option value="hourly">Hourly Rate</option>
+                    </>
+                  ) : (
+                    payFrequenciesList.map((f) => (
+                      <option key={f.id} value={f.slug}>
+                        {f.name}
+                      </option>
+                    ))
+                  )}
                 </select>
               </div>
 
@@ -1575,6 +1760,200 @@ export default function EditJobPage({ params }: EditJobPageProps) {
               className="gap-1"
             >
               {isAddingEduLevel ? <Loader2 className="size-3 animate-spin" /> : null}
+              <span>Save &amp; Select</span>
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Quick Add Requisition Status Modal */}
+      <Dialog open={addStatusOpen} onOpenChange={setAddStatusOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="text-base font-semibold">Quick Add Requisition Status</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2 text-xs">
+            <div className="space-y-1">
+              <label className="field-label">Status Name *</label>
+              <Input
+                value={newStatusName}
+                onChange={(e) => {
+                  setNewStatusName(e.target.value);
+                  if (!newStatusSlug) {
+                    setNewStatusSlug(
+                      e.target.value.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "")
+                    );
+                  }
+                }}
+                placeholder="e.g. Sourcing Phase"
+                className="h-8 text-xs"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="field-label">Identifier Slug</label>
+              <Input
+                value={newStatusSlug}
+                onChange={(e) => setNewStatusSlug(e.target.value)}
+                placeholder="e.g. sourcing"
+                className="h-8 text-xs"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="field-label">Badge Color Style</label>
+              <select
+                value={newStatusBadge}
+                onChange={(e) => setNewStatusBadge(e.target.value)}
+                className="h-8 w-full rounded-xs border border-border bg-card px-2 text-xs text-foreground"
+              >
+                <option value="soft-success">Green (Active / Open)</option>
+                <option value="secondary">Gray (Draft / Preparation)</option>
+                <option value="warning">Amber (On Hold / Paused)</option>
+                <option value="destructive">Red (Closed / Cancelled)</option>
+              </select>
+            </div>
+            <div className="space-y-1">
+              <label className="field-label">Description</label>
+              <Input
+                value={newStatusDesc}
+                onChange={(e) => setNewStatusDesc(e.target.value)}
+                placeholder="e.g. Active outbound sourcing stage"
+                className="h-8 text-xs"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button size="xs" variant="outline" onClick={() => setAddStatusOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              size="xs"
+              variant="accent"
+              disabled={isAddingStatus}
+              onClick={handleQuickAddStatus}
+              className="gap-1"
+            >
+              {isAddingStatus ? <Loader2 className="size-3 animate-spin" /> : null}
+              <span>Save &amp; Select</span>
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Quick Add Currency Modal */}
+      <Dialog open={addCurrencyOpen} onOpenChange={setAddCurrencyOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="text-base font-semibold">Quick Add Currency Master</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2 text-xs">
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1">
+                <label className="field-label">Currency Code *</label>
+                <Input
+                  value={newCurrCode}
+                  onChange={(e) => {
+                    setNewCurrCode(e.target.value);
+                    if (!newCurrName) setNewCurrName(`${e.target.value.toUpperCase()} (${newCurrSymbol || "$"})`);
+                  }}
+                  placeholder="e.g. JPY"
+                  className="h-8 text-xs uppercase"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="field-label">Symbol *</label>
+                <Input
+                  value={newCurrSymbol}
+                  onChange={(e) => {
+                    setNewCurrSymbol(e.target.value);
+                    if (newCurrCode) setNewCurrName(`${newCurrCode.toUpperCase()} (${e.target.value})`);
+                  }}
+                  placeholder="e.g. ¥"
+                  className="h-8 text-xs"
+                />
+              </div>
+            </div>
+            <div className="space-y-1">
+              <label className="field-label">Display Name *</label>
+              <Input
+                value={newCurrName}
+                onChange={(e) => setNewCurrName(e.target.value)}
+                placeholder="e.g. Japanese Yen (¥)"
+                className="h-8 text-xs"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button size="xs" variant="outline" onClick={() => setAddCurrencyOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              size="xs"
+              variant="accent"
+              disabled={isAddingCurrency}
+              onClick={handleQuickAddCurrency}
+              className="gap-1"
+            >
+              {isAddingCurrency ? <Loader2 className="size-3 animate-spin" /> : null}
+              <span>Save &amp; Select</span>
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Quick Add Pay Frequency Modal */}
+      <Dialog open={addPayFreqOpen} onOpenChange={setAddPayFreqOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="text-base font-semibold">Quick Add Pay Frequency</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2 text-xs">
+            <div className="space-y-1">
+              <label className="field-label">Frequency Name *</label>
+              <Input
+                value={newPayFreqName}
+                onChange={(e) => {
+                  setNewPayFreqName(e.target.value);
+                  if (!newPayFreqSlug) {
+                    setNewPayFreqSlug(
+                      e.target.value.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "")
+                    );
+                  }
+                }}
+                placeholder="e.g. Bi-Weekly Pay"
+                className="h-8 text-xs"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="field-label">Identifier Slug</label>
+              <Input
+                value={newPayFreqSlug}
+                onChange={(e) => setNewPayFreqSlug(e.target.value)}
+                placeholder="e.g. bi_weekly"
+                className="h-8 text-xs"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="field-label">Description</label>
+              <Input
+                value={newPayFreqDesc}
+                onChange={(e) => setNewPayFreqDesc(e.target.value)}
+                placeholder="e.g. 26 pay periods per calendar year"
+                className="h-8 text-xs"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button size="xs" variant="outline" onClick={() => setAddPayFreqOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              size="xs"
+              variant="accent"
+              disabled={isAddingPayFreq}
+              onClick={handleQuickAddPayFreq}
+              className="gap-1"
+            >
+              {isAddingPayFreq ? <Loader2 className="size-3 animate-spin" /> : null}
               <span>Save &amp; Select</span>
             </Button>
           </DialogFooter>

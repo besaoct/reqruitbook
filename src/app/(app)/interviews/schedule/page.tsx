@@ -26,6 +26,7 @@ import {
 import { toast } from "sonner";
 import { getApplications } from "@/lib/actions/applications";
 import { scheduleInterview } from "@/lib/actions/interviews";
+import { getInterviewTypes } from "@/lib/actions/settings";
 
 function ScheduleContent() {
   const router = useRouter();
@@ -34,6 +35,7 @@ function ScheduleContent() {
   const paramApplicationId = searchParams.get("applicationId");
 
   const [applications, setApplications] = useState<any[]>([]);
+  const [interviewTypesList, setInterviewTypesList] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -50,8 +52,16 @@ function ScheduleContent() {
   useEffect(() => {
     async function loadApps() {
       try {
-        const apps = await getApplications();
+        const [apps, types] = await Promise.all([
+          getApplications(),
+          getInterviewTypes(),
+        ]);
         setApplications(apps);
+        setInterviewTypesList(types);
+        if (types[0]) {
+          setRoundType(types[0].slug);
+          if (types[0].defaultDurationMinutes) setDuration(String(types[0].defaultDurationMinutes));
+        }
         if (paramApplicationId) {
           setSelectedAppId(paramApplicationId);
         } else if (paramCandidateId) {
@@ -177,13 +187,29 @@ function ScheduleContent() {
                 <label className="field-label">Round Type</label>
                 <select
                   value={roundType}
-                  onChange={(e) => setRoundType(e.target.value)}
+                  onChange={(e) => {
+                    setRoundType(e.target.value);
+                    const match = interviewTypesList.find((t) => t.slug === e.target.value);
+                    if (match && match.defaultDurationMinutes) {
+                      setDuration(String(match.defaultDurationMinutes));
+                    }
+                  }}
                   className="h-8 w-full rounded-xs border border-border bg-card px-2.5 text-xs text-foreground focus:border-ring"
                 >
-                  <option value="screening">Initial Recruiter Screening</option>
-                  <option value="technical">Technical Architecture &amp; Coding</option>
-                  <option value="culture">Culture &amp; Core Values</option>
-                  <option value="executive">Executive Leadership Final</option>
+                  {interviewTypesList.length === 0 ? (
+                    <>
+                      <option value="screening">Initial Recruiter Screening</option>
+                      <option value="technical">Technical Architecture &amp; Coding</option>
+                      <option value="culture">Culture &amp; Core Values</option>
+                      <option value="executive">Executive Leadership Final</option>
+                    </>
+                  ) : (
+                    interviewTypesList.map((t) => (
+                      <option key={t.id} value={t.slug}>
+                        {t.name} ({t.defaultDurationMinutes} mins)
+                      </option>
+                    ))
+                  )}
                 </select>
               </div>
 

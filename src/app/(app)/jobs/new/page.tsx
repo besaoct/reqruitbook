@@ -51,6 +51,10 @@ import {
   createExperienceLevel,
   getEducationLevels,
   createEducationLevel,
+  getCurrencies,
+  createCurrency,
+  getPayFrequencies,
+  createPayFrequency,
 } from "@/lib/actions/settings";
 import { RichTextEditor } from "@/components/ui/rich-text-editor";
 import { BenefitsRepeater, BenefitItem, BENEFIT_PRESETS } from "@/components/jobs/benefits-repeater";
@@ -63,6 +67,8 @@ export default function CreateJobPage() {
   const [employmentTypesList, setEmploymentTypesList] = useState<any[]>([]);
   const [experienceLevelsList, setExperienceLevelsList] = useState<any[]>([]);
   const [educationLevelsList, setEducationLevelsList] = useState<any[]>([]);
+  const [currenciesList, setCurrenciesList] = useState<any[]>([]);
+  const [payFrequenciesList, setPayFrequenciesList] = useState<any[]>([]);
   const [loadingLookups, setLoadingLookups] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -178,15 +184,29 @@ export default function CreateJobPage() {
   const [newEduLevelDesc, setNewEduLevelDesc] = useState("");
   const [isAddingEduLevel, setIsAddingEduLevel] = useState(false);
 
+  const [addCurrencyOpen, setAddCurrencyOpen] = useState(false);
+  const [newCurrCode, setNewCurrCode] = useState("");
+  const [newCurrSymbol, setNewCurrSymbol] = useState("");
+  const [newCurrName, setNewCurrName] = useState("");
+  const [isAddingCurrency, setIsAddingCurrency] = useState(false);
+
+  const [addPayFreqOpen, setAddPayFreqOpen] = useState(false);
+  const [newPayFreqName, setNewPayFreqName] = useState("");
+  const [newPayFreqSlug, setNewPayFreqSlug] = useState("");
+  const [newPayFreqDesc, setNewPayFreqDesc] = useState("");
+  const [isAddingPayFreq, setIsAddingPayFreq] = useState(false);
+
   const loadMetadata = async () => {
     try {
-      const [deptList, locList, wmList, etList, expList, eduList] = await Promise.all([
+      const [deptList, locList, wmList, etList, expList, eduList, currList, freqList] = await Promise.all([
         getDepartments(),
         getLocations(),
         getWorkModes(),
         getEmploymentTypes(),
         getExperienceLevels(),
         getEducationLevels(),
+        getCurrencies(),
+        getPayFrequencies(),
       ]);
       setDepartments(deptList);
       setLocations(locList);
@@ -194,6 +214,8 @@ export default function CreateJobPage() {
       setEmploymentTypesList(etList);
       setExperienceLevelsList(expList);
       setEducationLevelsList(eduList);
+      setCurrenciesList(currList);
+      setPayFrequenciesList(freqList);
 
       if (deptList[0] && !departmentId) setDepartmentId(deptList[0].id);
       if (locList[0] && !locationId) setLocationId(locList[0].id);
@@ -201,6 +223,8 @@ export default function CreateJobPage() {
       if (etList[0] && !employmentType) setEmploymentType(etList[0].slug);
       if (expList[0] && !experienceLevel) setExperienceLevel(expList[0].slug);
       if (eduList[0] && !educationLevel) setEducationLevel(eduList[0].slug);
+      if (currList[0] && !currency) setCurrency(currList[0].code);
+      if (freqList[0] && !payFrequency) setPayFrequency(freqList[0].slug);
     } catch (err) {
       console.error("Failed to load metadata:", err);
     } finally {
@@ -386,6 +410,60 @@ export default function CreateJobPage() {
       toast.error(err.message || "Failed to add education requirement");
     } finally {
       setIsAddingEduLevel(false);
+    }
+  };
+
+  const handleQuickAddCurrency = async () => {
+    if (!newCurrCode.trim() || !newCurrSymbol.trim() || !newCurrName.trim()) {
+      toast.error("Please provide currency code, symbol, and full name");
+      return;
+    }
+    setIsAddingCurrency(true);
+    try {
+      const code = newCurrCode.trim().toUpperCase();
+      await createCurrency({
+        code,
+        symbol: newCurrSymbol.trim(),
+        name: newCurrName.trim(),
+      });
+      toast.success(`Currency "${code}" added`);
+      setAddCurrencyOpen(false);
+      setNewCurrCode("");
+      setNewCurrSymbol("");
+      setNewCurrName("");
+      await loadMetadata();
+      setCurrency(code);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to add currency");
+    } finally {
+      setIsAddingCurrency(false);
+    }
+  };
+
+  const handleQuickAddPayFreq = async () => {
+    if (!newPayFreqName.trim()) {
+      toast.error("Please provide pay frequency name");
+      return;
+    }
+    setIsAddingPayFreq(true);
+    try {
+      const slug = (newPayFreqSlug || newPayFreqName).toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+      await createPayFrequency({
+        name: newPayFreqName.trim(),
+        slug,
+        description: newPayFreqDesc.trim() || undefined,
+      });
+      toast.success(`Pay frequency "${newPayFreqName}" added`);
+      setAddPayFreqOpen(false);
+      setNewPayFreqName("");
+      setNewPayFreqSlug("");
+      setNewPayFreqDesc("");
+      await loadMetadata();
+      setPayFrequency(slug);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to add pay frequency");
+    } finally {
+      setIsAddingPayFreq(false);
     }
   };
 
@@ -771,32 +849,76 @@ export default function CreateJobPage() {
           <CardContent className="space-y-4 text-xs">
             <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
               <div className="space-y-1.5">
-                <label className="field-label">Currency</label>
+                <div className="flex items-center justify-between">
+                  <label className="field-label flex items-center gap-1">
+                    <DollarSign className="size-3 text-copper" />
+                    <span>Currency</span>
+                  </label>
+                  <RoleGuard permission="canManageSettings">
+                    <button
+                      type="button"
+                      onClick={() => setAddCurrencyOpen(true)}
+                      className="text-[10px] text-copper hover:underline flex items-center gap-0.5 font-medium cursor-pointer"
+                    >
+                      <Plus className="size-2.5" />
+                      <span>Add New</span>
+                    </button>
+                  </RoleGuard>
+                </div>
                 <select
                   value={currency}
                   onChange={(e) => setCurrency(e.target.value)}
                   className="h-8 w-full rounded-xs border border-border bg-card px-2.5 text-xs text-foreground focus:border-ring"
                 >
-                  <option value="USD">USD ($)</option>
-                  <option value="EUR">EUR (€)</option>
-                  <option value="GBP">GBP (£)</option>
-                  <option value="CAD">CAD ($)</option>
-                  <option value="AUD">AUD ($)</option>
-                  <option value="SGD">SGD ($)</option>
-                  <option value="INR">INR (₹)</option>
+                  {currenciesList.length === 0 ? (
+                    <>
+                      <option value="USD">USD ($)</option>
+                      <option value="EUR">EUR (€)</option>
+                      <option value="GBP">GBP (£)</option>
+                      <option value="INR">INR (₹)</option>
+                    </>
+                  ) : (
+                    currenciesList.map((c) => (
+                      <option key={c.id} value={c.code}>
+                        {c.name}
+                      </option>
+                    ))
+                  )}
                 </select>
               </div>
 
               <div className="space-y-1.5">
-                <label className="field-label">Pay Frequency</label>
+                <div className="flex items-center justify-between">
+                  <label className="field-label">Pay Frequency</label>
+                  <RoleGuard permission="canManageSettings">
+                    <button
+                      type="button"
+                      onClick={() => setAddPayFreqOpen(true)}
+                      className="text-[10px] text-copper hover:underline flex items-center gap-0.5 font-medium cursor-pointer"
+                    >
+                      <Plus className="size-2.5" />
+                      <span>Add New</span>
+                    </button>
+                  </RoleGuard>
+                </div>
                 <select
                   value={payFrequency}
                   onChange={(e) => setPayFrequency(e.target.value)}
                   className="h-8 w-full rounded-xs border border-border bg-card px-2.5 text-xs text-foreground focus:border-ring"
                 >
-                  <option value="annual">Annual Salary</option>
-                  <option value="monthly">Monthly Salary</option>
-                  <option value="hourly">Hourly Rate</option>
+                  {payFrequenciesList.length === 0 ? (
+                    <>
+                      <option value="annual">Annual Salary</option>
+                      <option value="monthly">Monthly Salary</option>
+                      <option value="hourly">Hourly Rate</option>
+                    </>
+                  ) : (
+                    payFrequenciesList.map((f) => (
+                      <option key={f.id} value={f.slug}>
+                        {f.name}
+                      </option>
+                    ))
+                  )}
                 </select>
               </div>
 
@@ -1467,6 +1589,127 @@ export default function CreateJobPage() {
               className="gap-1"
             >
               {isAddingEduLevel ? <Loader2 className="size-3 animate-spin" /> : null}
+              <span>Save &amp; Select</span>
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Quick Add Currency Modal */}
+      <Dialog open={addCurrencyOpen} onOpenChange={setAddCurrencyOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="text-base font-semibold">Quick Add Currency Master</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2 text-xs">
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1">
+                <label className="field-label">Currency Code *</label>
+                <Input
+                  value={newCurrCode}
+                  onChange={(e) => {
+                    setNewCurrCode(e.target.value);
+                    if (!newCurrName) setNewCurrName(`${e.target.value.toUpperCase()} (${newCurrSymbol || "$"})`);
+                  }}
+                  placeholder="e.g. JPY"
+                  className="h-8 text-xs uppercase"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="field-label">Symbol *</label>
+                <Input
+                  value={newCurrSymbol}
+                  onChange={(e) => {
+                    setNewCurrSymbol(e.target.value);
+                    if (newCurrCode) setNewCurrName(`${newCurrCode.toUpperCase()} (${e.target.value})`);
+                  }}
+                  placeholder="e.g. ¥"
+                  className="h-8 text-xs"
+                />
+              </div>
+            </div>
+            <div className="space-y-1">
+              <label className="field-label">Display Name *</label>
+              <Input
+                value={newCurrName}
+                onChange={(e) => setNewCurrName(e.target.value)}
+                placeholder="e.g. Japanese Yen (¥)"
+                className="h-8 text-xs"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button size="xs" variant="outline" onClick={() => setAddCurrencyOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              size="xs"
+              variant="accent"
+              disabled={isAddingCurrency}
+              onClick={handleQuickAddCurrency}
+              className="gap-1"
+            >
+              {isAddingCurrency ? <Loader2 className="size-3 animate-spin" /> : null}
+              <span>Save &amp; Select</span>
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Quick Add Pay Frequency Modal */}
+      <Dialog open={addPayFreqOpen} onOpenChange={setAddPayFreqOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="text-base font-semibold">Quick Add Pay Frequency</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2 text-xs">
+            <div className="space-y-1">
+              <label className="field-label">Frequency Name *</label>
+              <Input
+                value={newPayFreqName}
+                onChange={(e) => {
+                  setNewPayFreqName(e.target.value);
+                  if (!newPayFreqSlug) {
+                    setNewPayFreqSlug(
+                      e.target.value.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "")
+                    );
+                  }
+                }}
+                placeholder="e.g. Bi-Weekly Pay"
+                className="h-8 text-xs"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="field-label">Identifier Slug</label>
+              <Input
+                value={newPayFreqSlug}
+                onChange={(e) => setNewPayFreqSlug(e.target.value)}
+                placeholder="e.g. bi_weekly"
+                className="h-8 text-xs"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="field-label">Description</label>
+              <Input
+                value={newPayFreqDesc}
+                onChange={(e) => setNewPayFreqDesc(e.target.value)}
+                placeholder="e.g. 26 pay periods per calendar year"
+                className="h-8 text-xs"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button size="xs" variant="outline" onClick={() => setAddPayFreqOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              size="xs"
+              variant="accent"
+              disabled={isAddingPayFreq}
+              onClick={handleQuickAddPayFreq}
+              className="gap-1"
+            >
+              {isAddingPayFreq ? <Loader2 className="size-3 animate-spin" /> : null}
               <span>Save &amp; Select</span>
             </Button>
           </DialogFooter>

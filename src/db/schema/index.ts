@@ -172,6 +172,73 @@ export const educationLevels = pgTable("education_levels", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+// 3f. Dynamic Currencies Master
+export const currencies = pgTable("currencies", {
+  id: varchar("id", { length: 64 }).primaryKey(),
+  orgId: varchar("org_id", { length: 64 })
+    .notNull()
+    .references(() => organizations.id, { onDelete: "cascade" }),
+  code: varchar("code", { length: 16 }).notNull(), // e.g. "USD", "EUR", "GBP", "INR"
+  symbol: varchar("symbol", { length: 16 }).notNull(), // e.g. "$", "€", "£", "₹"
+  name: text("name").notNull(), // e.g. "US Dollar ($)"
+  isDefault: boolean("is_default").default(false).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// 3g. Dynamic Pay Frequencies Master
+export const payFrequencies = pgTable("pay_frequencies", {
+  id: varchar("id", { length: 64 }).primaryKey(),
+  orgId: varchar("org_id", { length: 64 })
+    .notNull()
+    .references(() => organizations.id, { onDelete: "cascade" }),
+  name: text("name").notNull(), // e.g. "Annual Salary", "Monthly Salary", "Hourly Rate"
+  slug: varchar("slug", { length: 64 }).notNull(), // e.g. "annual", "monthly", "hourly"
+  description: text("description"),
+  isDefault: boolean("is_default").default(false).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// 3h. Dynamic Requisition / Job Statuses Master
+export const jobStatuses = pgTable("job_statuses", {
+  id: varchar("id", { length: 64 }).primaryKey(),
+  orgId: varchar("org_id", { length: 64 })
+    .notNull()
+    .references(() => organizations.id, { onDelete: "cascade" }),
+  name: text("name").notNull(), // e.g. "Published (Live on Careers)", "Draft (Internal Only)"
+  slug: varchar("slug", { length: 64 }).notNull(), // e.g. "published", "draft", "on_hold", "closed"
+  badgeVariant: varchar("badge_variant", { length: 32 }).default("secondary"), // e.g. "soft-success", "secondary", "warning", "destructive"
+  description: text("description"),
+  isDefault: boolean("is_default").default(false).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// 3i. Dynamic Interview Round Types Master
+export const interviewTypes = pgTable("interview_types", {
+  id: varchar("id", { length: 64 }).primaryKey(),
+  orgId: varchar("org_id", { length: 64 })
+    .notNull()
+    .references(() => organizations.id, { onDelete: "cascade" }),
+  name: text("name").notNull(), // e.g. "Initial Recruiter Screening", "Technical Architecture & Coding"
+  slug: varchar("slug", { length: 64 }).notNull(), // e.g. "screening", "technical", "culture", "executive"
+  defaultDurationMinutes: integer("default_duration_minutes").default(45).notNull(),
+  description: text("description"),
+  isDefault: boolean("is_default").default(false).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// 3j. Dynamic Benefit Categories Master
+export const benefitCategories = pgTable("benefit_categories", {
+  id: varchar("id", { length: 64 }).primaryKey(),
+  orgId: varchar("org_id", { length: 64 })
+    .notNull()
+    .references(() => organizations.id, { onDelete: "cascade" }),
+  name: text("name").notNull(), // e.g. "Healthcare & Wellness", "Retirement & Wealth"
+  slug: varchar("slug", { length: 64 }).notNull(), // e.g. "health", "financial", "time_off", "learning", "lifestyle"
+  description: text("description"),
+  isDefault: boolean("is_default").default(false).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 // 4a. Dynamic Roles & RBAC
 export const roles = pgTable(
   "roles",
@@ -280,7 +347,7 @@ export const jobOpenings = pgTable(
     experienceLevel: varchar("experience_level", { length: 64 }).default("mid"),
     educationLevel: varchar("education_level", { length: 64 }).default("bachelors"),
     targetStartDate: timestamp("target_start_date"),
-    status: jobStatusEnum("status").default("draft").notNull(),
+    status: varchar("status", { length: 64 }).default("draft").notNull(),
     summary: text("summary"),
     responsibilities: text("responsibilities"),
     requirements: text("requirements"),
