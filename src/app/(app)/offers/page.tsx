@@ -445,39 +445,105 @@ function OffersContent() {
           {previewOffer && (
             <div className="space-y-4 py-2 text-xs">
               <div className="p-4 bg-muted/30 rounded-xs border border-border space-y-3">
-                <div className="font-semibold text-sm text-foreground">
-                  My Organisation — Official Offer of Employment
+                <div className="flex items-center justify-between border-b border-border/60 pb-2">
+                  <div>
+                    <span className="font-bold text-sm text-foreground uppercase">
+                      My Organisation
+                    </span>
+                    <span className="text-[10px] text-muted-foreground block">
+                      Formal Employment Offer Package • {previewOffer.templateType?.toUpperCase() || "STANDARD"}
+                    </span>
+                  </div>
+                  <Button
+                    size="xs"
+                    variant="outline"
+                    onClick={() => window.print()}
+                    className="gap-1 text-xs h-7"
+                  >
+                    <span>Print Package</span>
+                  </Button>
                 </div>
+
                 <p className="text-foreground leading-relaxed">
-                  Dear {previewOffer.candidateName},
+                  Dear <strong>{previewOffer.candidateName}</strong>,
                 </p>
                 <p className="text-muted-foreground leading-relaxed">
-                  We are thrilled to offer you the position of <strong className="text-foreground">{previewOffer.designation}</strong> in our <strong className="text-foreground">{previewOffer.departmentName}</strong> team.
+                  We are pleased to extend this formal offer of employment for the position of{" "}
+                  <strong className="text-foreground">{previewOffer.designation}</strong>{" "}
+                  {previewOffer.gradeLevel ? `(${previewOffer.gradeLevel})` : ""} in our{" "}
+                  <strong className="text-foreground">{previewOffer.departmentName}</strong> team.
                 </p>
+
+                {/* Compensation Structure */}
                 <div className="p-3 bg-card rounded-xs border border-border space-y-1.5">
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">Annual Base Compensation:</span>
-                    <span className="font-semibold text-foreground">${(previewOffer.baseSalary || 0).toLocaleString()} {previewOffer.currency}</span>
+                    <span className="text-muted-foreground">Base Compensation:</span>
+                    <span className="font-semibold text-foreground">
+                      {previewOffer.currency} {(previewOffer.baseSalary || 0).toLocaleString()} / {previewOffer.payFrequency || "annual"}
+                    </span>
                   </div>
+                  {previewOffer.signOnBonus && (
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Sign-On Bonus:</span>
+                      <span className="font-semibold text-emerald-600">
+                        {previewOffer.currency} {Number(previewOffer.signOnBonus).toLocaleString()}
+                      </span>
+                    </div>
+                  )}
+                  {previewOffer.annualBonus && (
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Performance Bonus:</span>
+                      <span className="font-medium text-foreground">{previewOffer.annualBonus}</span>
+                    </div>
+                  )}
+                  {previewOffer.equityShares && (
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Equity Grant:</span>
+                      <span className="font-medium text-foreground">{previewOffer.equityShares}</span>
+                    </div>
+                  )}
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">Anticipated Start Date:</span>
+                    <span className="text-muted-foreground">Start / Joining Date:</span>
                     <span className="font-medium text-foreground">{previewOffer.joiningDate}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">Work Location:</span>
+                    <span className="text-muted-foreground">Work Location &amp; Mode:</span>
                     <span className="text-foreground">{previewOffer.workLocation || "San Francisco HQ / Hybrid"}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Reporting Manager:</span>
                     <span className="text-foreground">{previewOffer.reportingManager || "Department Head"}</span>
                   </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Probation / Notice:</span>
+                    <span className="text-foreground">
+                      {previewOffer.probationPeriod || "90 Days"} / {previewOffer.noticePeriod || "30 Days"}
+                    </span>
+                  </div>
                 </div>
+
+                {/* Benefits */}
                 <div className="space-y-1">
-                  <div className="font-semibold text-[11px] text-foreground">Benefits &amp; Provisions:</div>
+                  <div className="font-semibold text-[11px] text-foreground">Benefits &amp; Leave:</div>
                   <p className="text-muted-foreground text-[11px] leading-relaxed">
-                    {previewOffer.benefitsSummary || "Comprehensive Health, Dental, Vision, 401(k) 4% Match, $3,000 Annual Learning Budget."}
+                    {previewOffer.benefitsSummary || "Comprehensive Health, Dental, Vision, 401(k) Match, $3,000 Annual Learning Budget."}
                   </p>
                 </div>
+
+                {/* Custom Fields */}
+                {previewOffer.customFields && Array.isArray(previewOffer.customFields) && previewOffer.customFields.length > 0 && (
+                  <div className="space-y-1.5 pt-1 border-t border-border/60">
+                    <div className="font-semibold text-[11px] text-foreground">Special Custom Provisions:</div>
+                    <div className="space-y-1">
+                      {previewOffer.customFields.map((f: any, idx: number) => (
+                        <div key={idx} className="text-[11px] flex items-start gap-1.5">
+                          <span className="font-semibold text-copper shrink-0">• {f.key}:</span>
+                          <span className="text-foreground">{f.value}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           )}

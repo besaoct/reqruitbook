@@ -5,9 +5,8 @@
      - Brand palette is exactly four colours (bark / copper / sage / parchment)
      - No gradients anywhere
      - Radius vocabulary is only `rounded-xs` and `rounded-full`
+     - Typography strictly uses Montserrat (--font-sans)
    ========================================================================== */
-
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap");
 
 @import "tailwindcss";
 @custom-variant dark (&:is(.dark *));
@@ -380,7 +379,17 @@
   }
   .receipt-80 {
     width: 72mm;
-    font-family: var(--font-mono);
+    font-family: var(--font-sans), Montserrat, sans-serif !important;
     font-size: 11px;
   }
+}
+
+/* Strict Montserrat Font Enforcement for Sonner Toasts */
+[data-sonner-toaster],
+[data-sonner-toaster] *,
+[data-sonner-toast],
+[data-sonner-toast] *,
+.toast,
+.toast * {
+  font-family: var(--font-sans), Montserrat, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
 }

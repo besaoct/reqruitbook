@@ -22,13 +22,22 @@ export async function getOffers(params?: {
         id: offers.id,
         designation: offers.designation,
         departmentName: offers.departmentName,
+        gradeLevel: offers.gradeLevel,
         baseSalary: offers.baseSalary,
         currency: offers.currency,
+        payFrequency: offers.payFrequency,
+        signOnBonus: offers.signOnBonus,
+        annualBonus: offers.annualBonus,
+        equityShares: offers.equityShares,
         joiningDate: offers.joiningDate,
         reportingManager: offers.reportingManager,
         workLocation: offers.workLocation,
+        probationPeriod: offers.probationPeriod,
+        noticePeriod: offers.noticePeriod,
         benefitsSummary: offers.benefitsSummary,
         offerLetterContent: offers.offerLetterContent,
+        templateType: offers.templateType,
+        customFields: offers.customFields,
         status: offers.status,
         hrmSynced: offers.hrmSynced,
         hrmSyncedAt: offers.hrmSyncedAt,
@@ -57,18 +66,81 @@ export async function getOffers(params?: {
   }
 }
 
+export async function getOfferById(id: string) {
+  try {
+    const offerList = await db
+      .select({
+        id: offers.id,
+        designation: offers.designation,
+        departmentName: offers.departmentName,
+        gradeLevel: offers.gradeLevel,
+        baseSalary: offers.baseSalary,
+        currency: offers.currency,
+        payFrequency: offers.payFrequency,
+        signOnBonus: offers.signOnBonus,
+        annualBonus: offers.annualBonus,
+        equityShares: offers.equityShares,
+        joiningDate: offers.joiningDate,
+        reportingManager: offers.reportingManager,
+        workLocation: offers.workLocation,
+        probationPeriod: offers.probationPeriod,
+        noticePeriod: offers.noticePeriod,
+        benefitsSummary: offers.benefitsSummary,
+        offerLetterContent: offers.offerLetterContent,
+        templateType: offers.templateType,
+        customFields: offers.customFields,
+        status: offers.status,
+        hrmSynced: offers.hrmSynced,
+        hrmSyncedAt: offers.hrmSyncedAt,
+        expiresAt: offers.expiresAt,
+        createdAt: offers.createdAt,
+        updatedAt: offers.updatedAt,
+        applicationId: jobApplications.id,
+        candidateId: candidates.id,
+        candidateName: candidates.fullName,
+        candidateEmail: candidates.email,
+        candidatePhone: candidates.phone,
+        candidateCity: candidates.city,
+        jobId: jobOpenings.id,
+        jobTitle: jobOpenings.title,
+        reqCode: jobOpenings.reqCode,
+      })
+      .from(offers)
+      .leftJoin(jobApplications, eq(offers.applicationId, jobApplications.id))
+      .leftJoin(candidates, eq(offers.candidateId, candidates.id))
+      .leftJoin(jobOpenings, eq(jobApplications.jobId, jobOpenings.id))
+      .where(eq(offers.id, id))
+      .limit(1);
+
+    return offerList[0] || null;
+  } catch (error) {
+    console.error("Failed to fetch offer by id:", error);
+    return null;
+  }
+}
+
 export async function createOffer(data: {
   applicationId: string;
   candidateId: string;
   designation: string;
   departmentName: string;
+  gradeLevel?: string;
   baseSalary: number;
   currency?: string;
+  payFrequency?: string;
+  signOnBonus?: number;
+  annualBonus?: string;
+  equityShares?: string;
   joiningDate: string;
   reportingManager?: string;
   workLocation?: string;
+  probationPeriod?: string;
+  noticePeriod?: string;
   benefitsSummary?: string;
+  templateType?: string;
+  customFields?: Array<{ key: string; value: string }>;
   offerLetterContent?: string;
+  expiresAt?: Date | null;
 }) {
   const user = await getCurrentUser();
   if (!user) throw new Error("Unauthenticated");
@@ -82,15 +154,25 @@ export async function createOffer(data: {
     candidateId: data.candidateId,
     designation: data.designation,
     departmentName: data.departmentName,
+    gradeLevel: data.gradeLevel || null,
     baseSalary: data.baseSalary,
     currency: data.currency || "USD",
+    payFrequency: data.payFrequency || "annual",
+    signOnBonus: data.signOnBonus || null,
+    annualBonus: data.annualBonus || null,
+    equityShares: data.equityShares || null,
     joiningDate: data.joiningDate,
     reportingManager: data.reportingManager || "Engineering Director",
     workLocation: data.workLocation || "San Francisco HQ / Hybrid",
-    benefitsSummary: data.benefitsSummary || "Comprehensive Medical, Dental, 401(k) 4% Match, $3,000 Annual Learning Stipend",
+    probationPeriod: data.probationPeriod || "90 Days",
+    noticePeriod: data.noticePeriod || "30 Days",
+    benefitsSummary: data.benefitsSummary || "Comprehensive Medical, Dental, 401(k) Match, $3,000 Annual Learning Budget",
+    templateType: data.templateType || "standard",
+    customFields: data.customFields || [],
     offerLetterContent: data.offerLetterContent || `Dear Candidate, We are pleased to extend this formal offer of employment for the position of ${data.designation} at My Organisation.`,
     status: "draft",
     hrmSynced: false,
+    expiresAt: data.expiresAt || null,
     createdAt: new Date(),
     updatedAt: new Date(),
   });
@@ -112,6 +194,7 @@ export async function createOffer(data: {
       designation: data.designation,
       baseSalary: data.baseSalary,
       currency: data.currency || "USD",
+      templateType: data.templateType || "standard",
     },
   });
 

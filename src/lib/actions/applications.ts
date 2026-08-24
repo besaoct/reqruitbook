@@ -2,7 +2,16 @@
 
 import { revalidatePath } from "next/cache";
 import { db } from "@/db";
-import { jobApplications, candidates, jobOpenings, departments } from "@/db/schema";
+import {
+  jobApplications,
+  candidates,
+  jobOpenings,
+  departments,
+  interviews,
+  interviewScorecards,
+  offers,
+  users,
+} from "@/db/schema";
 import { eq, desc, and } from "drizzle-orm";
 import { getCurrentUser } from "@/lib/auth/session";
 import { assertPermission } from "@/lib/auth/rbac";
@@ -39,18 +48,25 @@ export async function getApplications(params?: {
         stage: jobApplications.stage,
         fitScore: jobApplications.fitScore,
         source: jobApplications.source,
+        answers: jobApplications.answers,
         rejectedReason: jobApplications.rejectedReason,
         hiredAt: jobApplications.hiredAt,
         createdAt: jobApplications.createdAt,
         updatedAt: jobApplications.updatedAt,
         jobId: jobOpenings.id,
         jobTitle: jobOpenings.title,
+        reqCode: jobOpenings.reqCode,
+        locationText: jobOpenings.locationText,
+        workMode: jobOpenings.workMode,
+        employmentType: jobOpenings.employmentType,
+        customQuestions: jobOpenings.customQuestions,
         departmentName: departments.name,
         candidateId: candidates.id,
         candidateName: candidates.fullName,
         candidateEmail: candidates.email,
         candidatePhone: candidates.phone,
         candidateCity: candidates.city,
+        candidateCountry: candidates.country,
         currentDesignation: candidates.currentDesignation,
         currentCompany: candidates.currentCompany,
         experienceYears: candidates.totalExperienceYears,
@@ -66,6 +82,8 @@ export async function getApplications(params?: {
         portfolioUrl: candidates.portfolioUrl,
         linkedInUrl: candidates.linkedInUrl,
         coverLetter: candidates.coverLetter,
+        notes: candidates.notes,
+        inTalentPool: candidates.inTalentPool,
       })
       .from(jobApplications)
       .leftJoin(jobOpenings, eq(jobApplications.jobId, jobOpenings.id))
@@ -78,6 +96,104 @@ export async function getApplications(params?: {
   } catch (error) {
     console.error("Failed to fetch applications:", error);
     return [];
+  }
+}
+
+export async function getApplicationDetails(applicationId: string) {
+  try {
+    const apps = await db
+      .select({
+        id: jobApplications.id,
+        stage: jobApplications.stage,
+        fitScore: jobApplications.fitScore,
+        source: jobApplications.source,
+        answers: jobApplications.answers,
+        rejectedReason: jobApplications.rejectedReason,
+        hiredAt: jobApplications.hiredAt,
+        createdAt: jobApplications.createdAt,
+        updatedAt: jobApplications.updatedAt,
+        jobId: jobOpenings.id,
+        jobTitle: jobOpenings.title,
+        reqCode: jobOpenings.reqCode,
+        salaryMin: jobOpenings.salaryMin,
+        salaryMax: jobOpenings.salaryMax,
+        currency: jobOpenings.currency,
+        payFrequency: jobOpenings.payFrequency,
+        locationText: jobOpenings.locationText,
+        workMode: jobOpenings.workMode,
+        employmentType: jobOpenings.employmentType,
+        experienceLevel: jobOpenings.experienceLevel,
+        educationLevel: jobOpenings.educationLevel,
+        summary: jobOpenings.summary,
+        customQuestions: jobOpenings.customQuestions,
+        departmentName: departments.name,
+        candidateId: candidates.id,
+        candidateName: candidates.fullName,
+        candidateEmail: candidates.email,
+        candidatePhone: candidates.phone,
+        candidateCity: candidates.city,
+        candidateCountry: candidates.country,
+        currentDesignation: candidates.currentDesignation,
+        currentCompany: candidates.currentCompany,
+        experienceYears: candidates.totalExperienceYears,
+        totalExperienceText: candidates.totalExperienceText,
+        expectedSalary: candidates.expectedSalary,
+        expectedSalaryText: candidates.expectedSalaryText,
+        noticePeriodDays: candidates.noticePeriodDays,
+        noticePeriodText: candidates.noticePeriodText,
+        rating: candidates.rating,
+        skills: candidates.skills,
+        resumeUrl: candidates.resumeUrl,
+        resumeFileName: candidates.resumeFileName,
+        portfolioUrl: candidates.portfolioUrl,
+        linkedInUrl: candidates.linkedInUrl,
+        coverLetter: candidates.coverLetter,
+        notes: candidates.notes,
+        inTalentPool: candidates.inTalentPool,
+      })
+      .from(jobApplications)
+      .leftJoin(jobOpenings, eq(jobApplications.jobId, jobOpenings.id))
+      .leftJoin(departments, eq(jobOpenings.departmentId, departments.id))
+      .leftJoin(candidates, eq(jobApplications.candidateId, candidates.id))
+      .where(eq(jobApplications.id, applicationId))
+      .limit(1);
+
+    const app = apps[0];
+    if (!app) return null;
+
+    // Fetch interviews for this application
+    const interviewList = await db
+      .select({
+        id: interviews.id,
+        roundTitle: interviews.roundTitle,
+        roundType: interviews.roundType,
+        scheduledStart: interviews.scheduledStart,
+        durationMinutes: interviews.durationMinutes,
+        format: interviews.format,
+        meetingLink: interviews.meetingLink,
+        status: interviews.status,
+        notes: interviews.notes,
+        panelMemberIds: interviews.panelMemberIds,
+      })
+      .from(interviews)
+      .where(eq(interviews.applicationId, applicationId))
+      .orderBy(desc(interviews.scheduledStart));
+
+    // Fetch offer (if any)
+    const offerList = await db
+      .select()
+      .from(offers)
+      .where(eq(offers.applicationId, applicationId))
+      .limit(1);
+
+    return {
+      ...app,
+      interviews: interviewList,
+      offer: offerList[0] || null,
+    };
+  } catch (error) {
+    console.error("Failed to fetch application details:", error);
+    return null;
   }
 }
 
