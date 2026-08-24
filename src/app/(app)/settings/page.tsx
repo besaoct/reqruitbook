@@ -49,7 +49,22 @@ import {
   CalendarDays,
   Layers,
   Tag,
+  Mail,
+  Server,
+  KeyRound,
+  Eye,
+  EyeOff,
+  Send,
+  ShieldAlert,
+  Sparkles,
+  RefreshCw,
 } from "lucide-react";
+import {
+  getSmtpConfig,
+  saveSmtpConfig,
+  testSmtpConnection,
+  type SmtpConfig,
+} from "@/lib/email/mailer";
 import {
   Dialog,
   DialogContent,
@@ -159,6 +174,7 @@ function SettingsContent() {
     if (tab === "employment-types" || tab === "employment_types") return "employment-types";
     if (tab === "experience-levels" || tab === "experience_levels") return "experience-levels";
     if (tab === "education-levels" || tab === "education_levels") return "education-levels";
+    if (tab === "smtp" || tab === "email" || tab === "mail") return "smtp";
     if (tab === "integrations") return "integrations";
     return "company";
   };
@@ -179,6 +195,7 @@ function SettingsContent() {
   const canViewEmpTypes = isSuperAdmin || hasPermission("canManageEmploymentTypes") || hasPermission("canManageSettings");
   const canViewExpLevels = isSuperAdmin || hasPermission("canManageExperienceLevels") || hasPermission("canManageSettings");
   const canViewEduLevels = isSuperAdmin || hasPermission("canManageEducationLevels") || hasPermission("canManageSettings");
+  const canViewSMTP = isSuperAdmin || hasPermission("canManageSettings");
   const canViewSDK = isSuperAdmin || hasPermission("canManageSettings");
 
   useEffect(() => {
@@ -437,6 +454,30 @@ function SettingsContent() {
   const [editEduLevelDesc, setEditEduLevelDesc] = useState("");
   const [isUpdatingEduLevel, setIsUpdatingEduLevel] = useState(false);
 
+  // SMTP Settings State
+  const [smtpHost, setSmtpHost] = useState("smtp.resend.com");
+  const [smtpPort, setSmtpPort] = useState("587");
+  const [smtpSecure, setSmtpSecure] = useState(false);
+  const [smtpUser, setSmtpUser] = useState("resend");
+  const [smtpPass, setSmtpPass] = useState("");
+  const [smtpFromName, setSmtpFromName] = useState("ReqruitBook Talent Team");
+  const [smtpFromEmail, setSmtpFromEmail] = useState("talent@reqruitbook.com");
+  const [smtpReplyTo, setSmtpReplyTo] = useState("recruiting@reqruitbook.com");
+  const [smtpSignature, setSmtpSignature] = useState("--\nReqruitBook Talent Acquisition\nhttps://reqruitbook.com");
+  const [smtpAutoAppConfirm, setSmtpAutoAppConfirm] = useState(true);
+  const [smtpAutoInterviewInvite, setSmtpAutoInterviewInvite] = useState(true);
+  const [smtpAutoOfferNotice, setSmtpAutoOfferNotice] = useState(true);
+  const [smtpConfigured, setSmtpConfigured] = useState(false);
+  const [smtpLastTestedAt, setSmtpLastTestedAt] = useState<string | null>(null);
+  const [smtpLastTestStatus, setSmtpLastTestStatus] = useState<"success" | "error" | null>(null);
+  const [smtpLastTestMessage, setSmtpLastTestMessage] = useState<string | null>(null);
+
+  const [smtpTestEmail, setSmtpTestEmail] = useState("");
+  const [smtpTesting, setSmtpTesting] = useState(false);
+  const [smtpSaving, setSmtpSaving] = useState(false);
+  const [smtpLogs, setSmtpLogs] = useState<string[]>([]);
+  const [showSmtpPassword, setShowSmtpPassword] = useState(false);
+
   const [copied, setCopied] = useState(false);
 
   const loadAll = async () => {
@@ -457,6 +498,7 @@ function SettingsContent() {
         etList,
         expList,
         eduList,
+        smtpData,
       ] = await Promise.all([
         getOrganizationSettings(),
         getUsers(),
@@ -472,6 +514,7 @@ function SettingsContent() {
         getEmploymentTypes(),
         getExperienceLevels(),
         getEducationLevels(),
+        getSmtpConfig(),
       ]);
       setOrg(orgData);
       if (orgData) {
@@ -493,6 +536,27 @@ function SettingsContent() {
       setEmploymentTypesList(etList);
       setExperienceLevelsList(expList);
       setEducationLevelsList(eduList);
+      if (smtpData) {
+        setSmtpHost(smtpData.host || "smtp.resend.com");
+        setSmtpPort(String(smtpData.port || 587));
+        setSmtpSecure(Boolean(smtpData.secure));
+        setSmtpUser(smtpData.user || "");
+        setSmtpPass(smtpData.pass || "");
+        setSmtpFromName(smtpData.fromName || "ReqruitBook Talent Team");
+        setSmtpFromEmail(smtpData.fromEmail || "talent@reqruitbook.com");
+        setSmtpReplyTo(smtpData.replyTo || "recruiting@reqruitbook.com");
+        setSmtpSignature(smtpData.signature || "");
+        setSmtpAutoAppConfirm(smtpData.autoSendApplicationConfirmation !== false);
+        setSmtpAutoInterviewInvite(smtpData.autoSendInterviewInvite !== false);
+        setSmtpAutoOfferNotice(smtpData.autoSendOfferNotice !== false);
+        setSmtpConfigured(Boolean(smtpData.isConfigured));
+        setSmtpLastTestedAt(smtpData.lastTestedAt || null);
+        setSmtpLastTestStatus(smtpData.lastTestStatus || null);
+        setSmtpLastTestMessage(smtpData.lastTestMessage || null);
+        if (smtpData.fromEmail) {
+          setSmtpTestEmail(smtpData.fromEmail);
+        }
+      }
       if (rList[0] && !newUserRole) {
         setNewUserRole(rList[0].slug);
       }
@@ -1514,6 +1578,137 @@ function SettingsContent() {
     }
   };
 
+  // ---------------------------------------------------------------------------
+  // SMTP CONFIGURATION HANDLERS
+  // ---------------------------------------------------------------------------
+  const handleSelectProviderPreset = (preset: string) => {
+    switch (preset) {
+      case "resend":
+        setSmtpHost("smtp.resend.com");
+        setSmtpPort("587");
+        setSmtpSecure(false);
+        setSmtpUser("resend");
+        toast.success("Resend SMTP preset applied (Port 587 / STARTTLS)");
+        break;
+      case "sendgrid":
+        setSmtpHost("smtp.sendgrid.net");
+        setSmtpPort("587");
+        setSmtpSecure(false);
+        setSmtpUser("apikey");
+        toast.success("SendGrid SMTP preset applied (Username: apikey)");
+        break;
+      case "ses":
+        setSmtpHost("email-smtp.us-east-1.amazonaws.com");
+        setSmtpPort("587");
+        setSmtpSecure(false);
+        toast.success("Amazon SES preset applied (Port 587 / STARTTLS)");
+        break;
+      case "gmail":
+        setSmtpHost("smtp.gmail.com");
+        setSmtpPort("465");
+        setSmtpSecure(true);
+        toast.success("Google Workspace preset applied (Port 465 / SSL with App Password)");
+        break;
+      case "mailgun":
+        setSmtpHost("smtp.mailgun.org");
+        setSmtpPort("587");
+        setSmtpSecure(false);
+        toast.success("Mailgun preset applied");
+        break;
+      case "postmark":
+        setSmtpHost("smtp.postmarkapp.com");
+        setSmtpPort("587");
+        setSmtpSecure(false);
+        toast.success("Postmark preset applied");
+        break;
+      default:
+        break;
+    }
+  };
+
+  const handleSaveSmtp = async () => {
+    if (!smtpHost.trim() || !smtpPort.trim() || !smtpFromEmail.trim()) {
+      toast.error("SMTP Host, Port, and Sender Email are required");
+      return;
+    }
+
+    setSmtpSaving(true);
+    try {
+      await saveSmtpConfig({
+        host: smtpHost.trim(),
+        port: Number(smtpPort),
+        secure: smtpSecure,
+        user: smtpUser.trim(),
+        pass: smtpPass,
+        fromName: smtpFromName.trim(),
+        fromEmail: smtpFromEmail.trim(),
+        replyTo: smtpReplyTo.trim() || undefined,
+        signature: smtpSignature,
+        autoSendApplicationConfirmation: smtpAutoAppConfirm,
+        autoSendInterviewInvite: smtpAutoInterviewInvite,
+        autoSendOfferNotice: smtpAutoOfferNotice,
+      });
+      setSmtpConfigured(true);
+      toast.success("SMTP email delivery settings saved successfully!");
+      await loadAll();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to save SMTP settings");
+    } finally {
+      setSmtpSaving(false);
+    }
+  };
+
+  const handleTestSmtp = async () => {
+    if (!smtpHost.trim() || !smtpPort.trim() || !smtpFromEmail.trim()) {
+      toast.error("Please fill in SMTP Host, Port, and Sender Email before testing");
+      return;
+    }
+    const targetEmail = smtpTestEmail.trim() || smtpFromEmail.trim();
+    if (!targetEmail) {
+      toast.error("Please provide a test recipient email address");
+      return;
+    }
+
+    setSmtpTesting(true);
+    setSmtpLogs(["Connecting to SMTP relay server..."]);
+    try {
+      const res = await testSmtpConnection(targetEmail, {
+        host: smtpHost.trim(),
+        port: Number(smtpPort),
+        secure: smtpSecure,
+        user: smtpUser.trim(),
+        pass: smtpPass,
+        fromName: smtpFromName.trim(),
+        fromEmail: smtpFromEmail.trim(),
+        replyTo: smtpReplyTo.trim() || undefined,
+        signature: smtpSignature,
+      });
+
+      if (res.logs) {
+        setSmtpLogs(res.logs);
+      }
+
+      if (res.success) {
+        setSmtpLastTestStatus("success");
+        setSmtpLastTestedAt(new Date().toISOString());
+        setSmtpLastTestMessage(res.message);
+        toast.success(res.message);
+      } else {
+        setSmtpLastTestStatus("error");
+        setSmtpLastTestedAt(new Date().toISOString());
+        setSmtpLastTestMessage(res.message);
+        toast.error(res.message);
+      }
+    } catch (err: any) {
+      setSmtpLogs((prev) => [...prev, `❌ Exception: ${err.message || String(err)}`]);
+      setSmtpLastTestStatus("error");
+      setSmtpLastTestMessage(err.message || "Connection failed");
+      toast.error(err.message || "SMTP test failed");
+    } finally {
+      setSmtpTesting(false);
+    }
+  };
+
   const embedCodeSnippet = `// 1. Host Application React Microfrontend Import
 import { ReqruitBookEmbedContainer, CandidatePipelineEmbed } from "@reqruitbook/embed-sdk";
 
@@ -1649,6 +1844,12 @@ export function HostHrmRecruitmentView() {
               {canViewEduLevels && (
                 <TabsTrigger value="education-levels" className="shrink-0 whitespace-nowrap">
                   Education Requirements ({educationLevelsList.length})
+                </TabsTrigger>
+              )}
+              {canViewSMTP && (
+                <TabsTrigger value="smtp" className="flex items-center gap-1.5 shrink-0 whitespace-nowrap">
+                  <Mail className="size-3.5 text-copper" />
+                  <span>SMTP &amp; Email Delivery</span>
                 </TabsTrigger>
               )}
               {canViewSDK && (
@@ -3012,6 +3213,432 @@ export function HostHrmRecruitmentView() {
                 </pre>
               </CardContent>
             </Card>
+          </TabsContent>
+        )}
+
+        {/* 9. SMTP & EMAIL DELIVERY SETTINGS */}
+        {canViewSMTP && (
+          <TabsContent value="smtp" className="space-y-5 w-full max-w-full min-w-0">
+            {/* SMTP Status & Quick Presets Header */}
+            <div className="p-4 rounded-xs border border-border bg-card/60 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <div className={cn("size-2.5 rounded-full", smtpConfigured ? "bg-emerald-500 animate-pulse" : "bg-amber-500")} />
+                  <h3 className="text-sm font-semibold text-foreground">
+                    Corporate SMTP Mail Relay Server
+                  </h3>
+                  <Badge variant={smtpConfigured ? "soft-success" : "outline"} className="text-[10px]">
+                    {smtpConfigured ? "Configured & Active" : "Unconfigured / Simulation Mode"}
+                  </Badge>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Connect your organization&apos;s transactional email provider to send live interview invites, application acknowledgments, and candidate offers.
+                </p>
+              </div>
+
+              {/* Quick Provider Presets */}
+              <div className="flex flex-wrap items-center gap-1.5 self-stretch md:self-auto">
+                <span className="text-[10px] text-muted-foreground uppercase font-bold mr-1">
+                  Provider Presets:
+                </span>
+                <Button
+                  type="button"
+                  size="xs"
+                  variant="outline"
+                  onClick={() => handleSelectProviderPreset("resend")}
+                  className="h-6 text-[11px] px-2 border-border"
+                >
+                  Resend
+                </Button>
+                <Button
+                  type="button"
+                  size="xs"
+                  variant="outline"
+                  onClick={() => handleSelectProviderPreset("sendgrid")}
+                  className="h-6 text-[11px] px-2 border-border"
+                >
+                  SendGrid
+                </Button>
+                <Button
+                  type="button"
+                  size="xs"
+                  variant="outline"
+                  onClick={() => handleSelectProviderPreset("ses")}
+                  className="h-6 text-[11px] px-2 border-border"
+                >
+                  AWS SES
+                </Button>
+                <Button
+                  type="button"
+                  size="xs"
+                  variant="outline"
+                  onClick={() => handleSelectProviderPreset("gmail")}
+                  className="h-6 text-[11px] px-2 border-border"
+                >
+                  Gmail / Google Workspace
+                </Button>
+                <Button
+                  type="button"
+                  size="xs"
+                  variant="outline"
+                  onClick={() => handleSelectProviderPreset("mailgun")}
+                  className="h-6 text-[11px] px-2 border-border"
+                >
+                  Mailgun
+                </Button>
+                <Button
+                  type="button"
+                  size="xs"
+                  variant="outline"
+                  onClick={() => handleSelectProviderPreset("postmark")}
+                  className="h-6 text-[11px] px-2 border-border"
+                >
+                  Postmark
+                </Button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+              {/* Left Column: Server Connection & Sender Identity (7 cols) */}
+              <div className="lg:col-span-7 space-y-5">
+                {/* Connection Credentials Card */}
+                <Card className="shadow-none border border-border">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                      <Server className="size-4 text-copper" />
+                      <span>SMTP Connection Parameters</span>
+                    </CardTitle>
+                    <CardDescription className="text-xs">
+                      Specify host endpoint, port, and authentication credentials.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-3.5 text-xs">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div className="sm:col-span-2 space-y-1">
+                        <label className="field-label">SMTP Hostname *</label>
+                        <Input
+                          placeholder="e.g. smtp.resend.com or smtp.gmail.com"
+                          value={smtpHost}
+                          onChange={(e) => setSmtpHost(e.target.value)}
+                          className="h-8 text-xs font-mono"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="field-label">Port *</label>
+                        <Input
+                          placeholder="587"
+                          value={smtpPort}
+                          onChange={(e) => setSmtpPort(e.target.value)}
+                          className="h-8 text-xs font-mono"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-4 pt-1">
+                      <label className="text-xs font-medium text-foreground">Security Protocol:</label>
+                      <div className="flex items-center gap-3 text-xs">
+                        <label className="flex items-center gap-1.5 cursor-pointer">
+                          <input
+                            type="radio"
+                            name="smtp_security"
+                            checked={!smtpSecure}
+                            onChange={() => setSmtpSecure(false)}
+                            className="accent-copper size-3.5"
+                          />
+                          <span>STARTTLS (Port 587 / 25)</span>
+                        </label>
+                        <label className="flex items-center gap-1.5 cursor-pointer">
+                          <input
+                            type="radio"
+                            name="smtp_security"
+                            checked={smtpSecure}
+                            onChange={() => setSmtpSecure(true)}
+                            className="accent-copper size-3.5"
+                          />
+                          <span>SSL / TLS (Port 465)</span>
+                        </label>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1 border-t border-border/60">
+                      <div className="space-y-1">
+                        <label className="field-label">SMTP Username / API Key</label>
+                        <Input
+                          placeholder="resend, apikey, or email"
+                          value={smtpUser}
+                          onChange={(e) => setSmtpUser(e.target.value)}
+                          className="h-8 text-xs font-mono"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between">
+                          <label className="field-label">SMTP Password / Secret</label>
+                          <button
+                            type="button"
+                            onClick={() => setShowSmtpPassword((v) => !v)}
+                            className="text-[10px] text-muted-foreground hover:text-foreground flex items-center gap-1"
+                          >
+                            {showSmtpPassword ? <EyeOff className="size-3" /> : <Eye className="size-3" />}
+                            <span>{showSmtpPassword ? "Hide" : "Show"}</span>
+                          </button>
+                        </div>
+                        <Input
+                          type={showSmtpPassword ? "text" : "password"}
+                          placeholder="••••••••••••••••"
+                          value={smtpPass}
+                          onChange={(e) => setSmtpPass(e.target.value)}
+                          className="h-8 text-xs font-mono"
+                        />
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Sender Identity & Mail Routing Card */}
+                <Card className="shadow-none border border-border">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                      <Mail className="size-4 text-copper" />
+                      <span>Sender Identity &amp; Corporate Branding</span>
+                    </CardTitle>
+                    <CardDescription className="text-xs">
+                      Configure what candidate recipients see in their inbox &quot;From&quot; header.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-3.5 text-xs">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <label className="field-label">Sender Display Name *</label>
+                        <Input
+                          placeholder="e.g. ReqruitBook Talent Team"
+                          value={smtpFromName}
+                          onChange={(e) => setSmtpFromName(e.target.value)}
+                          className="h-8 text-xs"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="field-label">Sender &quot;From&quot; Email Address *</label>
+                        <Input
+                          type="email"
+                          placeholder="talent@reqruitbook.com"
+                          value={smtpFromEmail}
+                          onChange={(e) => setSmtpFromEmail(e.target.value)}
+                          className="h-8 text-xs"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="field-label">&quot;Reply-To&quot; Email Address (Optional)</label>
+                      <Input
+                        type="email"
+                        placeholder="recruiting-inbox@reqruitbook.com"
+                        value={smtpReplyTo}
+                        onChange={(e) => setSmtpReplyTo(e.target.value)}
+                        className="h-8 text-xs"
+                      />
+                      <span className="text-[10px] text-muted-foreground">
+                        Candidate email replies will be directed to this address.
+                      </span>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="field-label">Standard Corporate Email Signature &amp; Footer</label>
+                      <Textarea
+                        rows={3}
+                        value={smtpSignature}
+                        onChange={(e) => setSmtpSignature(e.target.value)}
+                        className="text-xs leading-relaxed font-mono"
+                        placeholder="--\nReqruitBook Talent Team"
+                      />
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Automated Triggers Card */}
+                <Card className="shadow-none border border-border">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                      <Sparkles className="size-4 text-copper" />
+                      <span>Automated Recruitment Email Triggers</span>
+                    </CardTitle>
+                    <CardDescription className="text-xs">
+                      Enable system actions that trigger real-time candidate notifications.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-2.5 text-xs">
+                    <label className="flex items-start gap-2.5 p-2 rounded-xs border border-border bg-card hover:bg-muted/30 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={smtpAutoAppConfirm}
+                        onChange={(e) => setSmtpAutoAppConfirm(e.target.checked)}
+                        className="accent-copper size-4 mt-0.5"
+                      />
+                      <div>
+                        <span className="font-semibold text-foreground block">
+                          Instant Application Acknowledgment
+                        </span>
+                        <span className="text-[11px] text-muted-foreground">
+                          Auto-dispatch confirmation email with tracking link when candidate applies via Careers Portal.
+                        </span>
+                      </div>
+                    </label>
+
+                    <label className="flex items-start gap-2.5 p-2 rounded-xs border border-border bg-card hover:bg-muted/30 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={smtpAutoInterviewInvite}
+                        onChange={(e) => setSmtpAutoInterviewInvite(e.target.checked)}
+                        className="accent-copper size-4 mt-0.5"
+                      />
+                      <div>
+                        <span className="font-semibold text-foreground block">
+                          Interview Schedule &amp; Video Link Dispatch
+                        </span>
+                        <span className="text-[11px] text-muted-foreground">
+                          Auto-send calendar briefing and meeting link whenever an interview round is booked.
+                        </span>
+                      </div>
+                    </label>
+
+                    <label className="flex items-start gap-2.5 p-2 rounded-xs border border-border bg-card hover:bg-muted/30 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={smtpAutoOfferNotice}
+                        onChange={(e) => setSmtpAutoOfferNotice(e.target.checked)}
+                        className="accent-copper size-4 mt-0.5"
+                      />
+                      <div>
+                        <span className="font-semibold text-foreground block">
+                          Offer Package Notification
+                        </span>
+                        <span className="text-[11px] text-muted-foreground">
+                          Notify candidate immediately when a formal compensation package is generated.
+                        </span>
+                      </div>
+                    </label>
+                  </CardContent>
+                </Card>
+
+                {/* Save Settings Action Bar */}
+                <div className="flex items-center justify-end gap-2 pt-2">
+                  <Button
+                    size="sm"
+                    variant="accent"
+                    disabled={smtpSaving}
+                    onClick={handleSaveSmtp}
+                    className="gap-1.5 text-xs font-semibold px-4"
+                  >
+                    {smtpSaving ? <Loader2 className="size-3.5 animate-spin" /> : <CheckCircle2 className="size-3.5" />}
+                    <span>Save SMTP Settings</span>
+                  </Button>
+                </div>
+              </div>
+
+              {/* Right Column: Connection Diagnostics & Live Test (5 cols) */}
+              <div className="lg:col-span-5 space-y-5">
+                <Card className="shadow-none border border-border">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                      <KeyRound className="size-4 text-copper" />
+                      <span>SMTP Handshake &amp; Live Test</span>
+                    </CardTitle>
+                    <CardDescription className="text-xs">
+                      Verify socket connection, TLS certificate, and send a test message.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-3.5 text-xs">
+                    <div className="space-y-1">
+                      <label className="field-label">Recipient Test Email</label>
+                      <Input
+                        type="email"
+                        placeholder="your-email@company.com"
+                        value={smtpTestEmail}
+                        onChange={(e) => setSmtpTestEmail(e.target.value)}
+                        className="h-8 text-xs"
+                      />
+                    </div>
+
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={smtpTesting}
+                      onClick={handleTestSmtp}
+                      className="w-full gap-1.5 text-xs font-medium border-copper/40 hover:bg-copper/10 hover:text-copper"
+                    >
+                      {smtpTesting ? (
+                        <>
+                          <Loader2 className="size-3.5 animate-spin text-copper" />
+                          <span>Testing Handshake &amp; Dispatching...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Send className="size-3.5 text-copper" />
+                          <span>Test Connection &amp; Send Verification Email</span>
+                        </>
+                      )}
+                    </Button>
+
+                    {/* Test Result Indicator */}
+                    {smtpLastTestedAt && (
+                      <div className={cn(
+                        "p-3 rounded-xs border text-xs space-y-1",
+                        smtpLastTestStatus === "success"
+                          ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400"
+                          : "bg-destructive/10 border-destructive/30 text-destructive"
+                      )}>
+                        <div className="flex items-center gap-1.5 font-semibold">
+                          {smtpLastTestStatus === "success" ? (
+                            <CheckCircle2 className="size-3.5 shrink-0" />
+                          ) : (
+                            <ShieldAlert className="size-3.5 shrink-0" />
+                          )}
+                          <span>
+                            {smtpLastTestStatus === "success" ? "Handshake Verified" : "Verification Failed"}
+                          </span>
+                        </div>
+                        <p className="text-[11px] leading-relaxed">
+                          {smtpLastTestMessage}
+                        </p>
+                        <span className="text-[10px] text-muted-foreground block pt-1">
+                          Tested at: {new Date(smtpLastTestedAt).toLocaleString()}
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Diagnostic Output Console */}
+                    <div className="space-y-1 pt-1">
+                      <div className="flex items-center justify-between text-[10px] uppercase font-bold text-muted-foreground">
+                        <span>Connection Log Console</span>
+                        {smtpLogs.length > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => setSmtpLogs([])}
+                            className="text-copper hover:underline lowercase font-mono"
+                          >
+                            clear
+                          </button>
+                        )}
+                      </div>
+                      <div className="p-3 bg-zinc-950 text-zinc-200 rounded-xs border border-border text-[11px] font-mono leading-relaxed min-h-[140px] max-h-[220px] overflow-y-auto space-y-1">
+                        {smtpLogs.length === 0 ? (
+                          <span className="text-zinc-500 italic">
+                            Click &quot;Test Connection&quot; above to inspect live SMTP handshake logs...
+                          </span>
+                        ) : (
+                          smtpLogs.map((lg, i) => (
+                            <div key={i} className="whitespace-pre-wrap break-all">
+                              {lg}
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            </div>
           </TabsContent>
         )}
       </Tabs>

@@ -255,6 +255,7 @@ export const APP_NAVIGATION: NavDef[] = [
       { label: "Education Levels", href: "/settings?tab=education-levels", permission: "canManageEducationLevels" },
       { label: "Users & Directory", href: "/settings?tab=users", permission: "canManageUsers" },
       { label: "Roles & Permissions (RBAC)", href: "/settings?tab=rbac", permission: "canAssignRoles" },
+      { label: "SMTP & Email Delivery", href: "/settings?tab=smtp", permission: "canManageSettings" },
       { label: "HRM & Integrations", href: "/settings?tab=integrations", permission: "canManageSettings" },
       { label: "Security & Webhooks", href: "/settings?tab=security", permission: "canManageSettings" },
     ],
