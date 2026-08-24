@@ -1,14 +1,13 @@
 "use client";
 
-import React, { useState, useEffect, Suspense } from "react";
+import React, { useState, useEffect, useRef, useCallback, Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/shared/page-header";
-import { StatusBadge } from "@/components/shared/status-badge";
 import { cn } from "@/lib/utils";
 import {
   Search,
@@ -22,6 +21,7 @@ import {
   XCircle,
   Clock,
   Star,
+  ChevronLeft,
   ChevronRight,
 } from "lucide-react";
 import {
@@ -71,6 +71,47 @@ function ApplicationsContent() {
   const [applications, setApplications] = useState<any[]>([]);
   const [jobs, setJobs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Horizontal Scroll & Fading for Kanban
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
+
+  const checkScroll = useCallback(() => {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    const { scrollLeft, scrollWidth, clientWidth } = el;
+    setCanScrollLeft(scrollLeft > 10);
+    setCanScrollRight(scrollLeft + clientWidth < scrollWidth - 10);
+  }, []);
+
+  useEffect(() => {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    checkScroll();
+
+    el.addEventListener("scroll", checkScroll, { passive: true });
+    window.addEventListener("resize", checkScroll);
+
+    // Initial check after paint
+    const timer = setTimeout(checkScroll, 100);
+
+    return () => {
+      clearTimeout(timer);
+      el.removeEventListener("scroll", checkScroll);
+      window.removeEventListener("resize", checkScroll);
+    };
+  }, [checkScroll, applications, activeView]);
+
+  const handleScroll = (direction: "left" | "right") => {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    const scrollAmount = 320;
+    el.scrollBy({
+      left: direction === "left" ? -scrollAmount : scrollAmount,
+      behavior: "smooth",
+    });
+  };
 
   // Table Sorting and Client Pagination
   const [tablePage, setTablePage] = useState<number>(1);
@@ -148,7 +189,7 @@ function ApplicationsContent() {
   });
 
   return (
-    <div className="page max-w-full">
+    <div className="page max-w-full space-y-4">
       <PageHeader
         title="ATS Candidate Kanban & Pipeline"
         description="Live 8-stage recruitment pipeline, structured panel interview routing, and offer generation."
@@ -181,7 +222,7 @@ function ApplicationsContent() {
             type="button"
             onClick={() => setActiveView("kanban")}
             className={cn(
-              "text-xs py-2 px-1 font-medium transition-all border-b-2 -mb-px whitespace-nowrap",
+              "text-xs py-2 px-1 font-medium transition-all border-b-2 -mb-px whitespace-nowrap cursor-pointer",
               activeView === "kanban"
                 ? "border-copper text-foreground font-semibold"
                 : "border-transparent text-muted-foreground hover:text-foreground hover:border-border/60",
@@ -193,7 +234,7 @@ function ApplicationsContent() {
             type="button"
             onClick={() => setActiveView("list")}
             className={cn(
-              "text-xs py-2 px-1 font-medium transition-all border-b-2 -mb-px whitespace-nowrap",
+              "text-xs py-2 px-1 font-medium transition-all border-b-2 -mb-px whitespace-nowrap cursor-pointer",
               activeView === "list"
                 ? "border-copper text-foreground font-semibold"
                 : "border-transparent text-muted-foreground hover:text-foreground hover:border-border/60",
@@ -204,11 +245,37 @@ function ApplicationsContent() {
         </div>
 
         <div className="flex items-center gap-2 w-full sm:w-auto">
+          {/* Quick chevron scroll buttons in header for kanban */}
+          {activeView === "kanban" && (
+            <div className="hidden sm:flex items-center gap-1 pr-1">
+              <button
+                type="button"
+                onClick={() => handleScroll("left")}
+                disabled={!canScrollLeft}
+                aria-label="Scroll pipeline left"
+                className="size-7 rounded-xs border border-border bg-card text-foreground hover:bg-muted hover:text-copper flex items-center justify-center transition-all disabled:opacity-30 disabled:pointer-events-none cursor-pointer"
+                title="Scroll pipeline left"
+              >
+                <ChevronLeft className="size-3.5" />
+              </button>
+              <button
+                type="button"
+                onClick={() => handleScroll("right")}
+                disabled={!canScrollRight}
+                aria-label="Scroll pipeline right"
+                className="size-7 rounded-xs border border-border bg-card text-foreground hover:bg-muted hover:text-copper flex items-center justify-center transition-all disabled:opacity-30 disabled:pointer-events-none cursor-pointer"
+                title="Scroll pipeline right"
+              >
+                <ChevronRight className="size-3.5" />
+              </button>
+            </div>
+          )}
+
           {/* Job Filter Dropdown */}
           <select
             value={selectedJobId}
             onChange={(e) => setSelectedJobId(e.target.value)}
-            className="h-7 px-2.5 text-xs rounded-xs border border-border bg-card text-foreground focus:outline-none focus:ring-1 focus:ring-copper"
+            className="h-7 px-2.5 text-xs rounded-xs border border-border bg-card text-foreground focus:outline-none focus:ring-1 focus:ring-copper cursor-pointer"
           >
             <option value="all">All Job Requisitions ({applications.length})</option>
             {jobs.map((j) => (
@@ -236,120 +303,184 @@ function ApplicationsContent() {
           <span>Loading ATS Kanban pipeline from database...</span>
         </div>
       ) : activeView === "kanban" ? (
-        /* KANBAN BOARD VIEW (8 Stages) */
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 2xl:grid-cols-8 gap-3 overflow-x-auto pb-4">
-          {KANBAN_STAGES.map((col) => {
-            const colApps = filteredApplications.filter((a) => a.stage === col.id);
-            return (
-              <div
-                key={col.id}
-                className={`flex flex-col bg-muted/30 rounded-xs border border-border border-t-4 ${col.color} p-2.5 min-h-120`}
-              >
-                {/* Column Header */}
-                <div className="flex items-center justify-between pb-2 mb-2 border-b border-border/60">
-                  <span className="font-semibold text-xs text-foreground truncate">
-                    {col.name}
-                  </span>
-                  <span className="text-[11px] px-1.5 py-0.2 rounded-xs bg-muted text-muted-foreground">
-                    {colApps.length}
-                  </span>
-                </div>
+        /* KANBAN BOARD VIEW (8 Stages with fixed width & smooth horizontal scroll) */
+        <div className="relative w-full group/kanban">
+          {/* Left Edge Fading Mask & Floating Chevron */}
+          <div
+            className={cn(
+              "pointer-events-none absolute left-0 top-0 bottom-4 w-16 bg-gradient-to-r from-background via-background/80 to-transparent z-20 transition-all duration-300 flex items-center justify-start pl-1",
+              canScrollLeft ? "opacity-100" : "opacity-0 pointer-events-none",
+            )}
+          >
+            <button
+              type="button"
+              onClick={() => handleScroll("left")}
+              disabled={!canScrollLeft}
+              aria-label="Scroll pipeline left"
+              className="pointer-events-auto size-8 rounded-full bg-card/95 hover:bg-card border border-border hover:border-copper/60 shadow-md text-foreground hover:text-copper flex items-center justify-center transition-all hover:scale-105 active:scale-95 cursor-pointer backdrop-blur-xs"
+            >
+              <ChevronLeft className="size-4" />
+            </button>
+          </div>
 
-                {/* Candidate Cards */}
-                <div className="space-y-2 flex-1 overflow-y-auto">
-                  {colApps.length === 0 ? (
-                    <div className="h-24 flex items-center justify-center text-[11px] text-muted-foreground border border-dashed border-border/60 rounded-xs">
-                      No candidates
-                    </div>
-                  ) : (
-                    colApps.map((app) => (
-                      <Card
-                        key={app.id}
-                        className="shadow-none border border-border bg-card hover:border-copper/60 transition-all p-3 space-y-2.5"
-                      >
-                        {/* Header */}
-                        <div className="flex items-start justify-between gap-1">
-                          <div>
-                            <span className="font-semibold text-xs text-foreground block hover:text-copper transition-colors">
-                              {app.candidateName}
-                            </span>
-                            <span className="text-[10px] text-muted-foreground truncate block">
-                              {app.jobTitle}
-                            </span>
-                          </div>
-                          <Badge variant="outline" className="text-[9px] shrink-0">
-                            {app.fitScore}%
-                          </Badge>
-                        </div>
+          {/* Right Edge Fading Mask & Floating Chevron */}
+          <div
+            className={cn(
+              "pointer-events-none absolute right-0 top-0 bottom-4 w-16 bg-gradient-to-l from-background via-background/80 to-transparent z-20 transition-all duration-300 flex items-center justify-end pr-1",
+              canScrollRight ? "opacity-100" : "opacity-0 pointer-events-none",
+            )}
+          >
+            <button
+              type="button"
+              onClick={() => handleScroll("right")}
+              disabled={!canScrollRight}
+              aria-label="Scroll pipeline right"
+              className="pointer-events-auto size-8 rounded-full bg-card/95 hover:bg-card border border-border hover:border-copper/60 shadow-md text-foreground hover:text-copper flex items-center justify-center transition-all hover:scale-105 active:scale-95 cursor-pointer backdrop-blur-xs"
+            >
+              <ChevronRight className="size-4" />
+            </button>
+          </div>
 
-                        {/* Experience / Info */}
-                        <div className="text-[11px] text-muted-foreground space-y-0.5">
-                          <div>{app.currentDesignation || "Software Engineer"}</div>
-                          <div className="text-[10px] flex items-center gap-1">
-                            <Clock className="size-3 text-muted-foreground" />
-                            <span>Applied {new Date(app.createdAt).toLocaleDateString()}</span>
-                          </div>
-                        </div>
+          {/* Kanban Columns Row */}
+          <div
+            ref={scrollContainerRef}
+            onScroll={checkScroll}
+            className="flex gap-3.5 overflow-x-auto pb-4 pt-1 scroll-smooth scrollbar-thin select-none"
+          >
+            {KANBAN_STAGES.map((col) => {
+              const colApps = filteredApplications.filter((a) => a.stage === col.id);
+              return (
+                <div
+                  key={col.id}
+                  className={`w-[290px] min-w-[290px] max-w-[290px] shrink-0 flex flex-col bg-muted/30 rounded-xs border border-border border-t-2 ${col.color} p-2.5 min-h-[580px]`}
+                >
+                  {/* Column Header */}
+                  <div className="flex items-center justify-between pb-2 mb-2 border-b border-border/60">
+                    <span className="font-semibold text-xs text-foreground truncate">
+                      {col.name}
+                    </span>
+                    <span className="text-[11px] px-1.5 py-0.5 rounded-xs bg-muted border border-border/50 text-foreground font-medium">
+                      {colApps.length}
+                    </span>
+                  </div>
 
-                        {/* Quick Stage Mover Dropdown */}
-                        <RoleGuard permission="canAdvancePipeline">
-                          <div className="pt-2 border-t border-border/60 flex items-center justify-between gap-1">
-                            <select
-                              value={app.stage}
-                              onChange={(e) => handleStageChange(app.id, e.target.value as any)}
-                              className="h-6 text-[10px] rounded-xs border border-border bg-muted/50 px-1 text-foreground focus:outline-none w-full"
+                  {/* Candidate Cards */}
+                  <div className="space-y-2.5 flex-1 overflow-y-auto pr-0.5">
+                    {colApps.length === 0 ? (
+                      <div className="h-28 flex flex-col items-center justify-center text-[11px] text-muted-foreground border border-dashed border-border/60 rounded-xs bg-muted/10 gap-1">
+                        <span>No candidates</span>
+                        <span className="text-[10px] opacity-60">in this stage</span>
+                      </div>
+                    ) : (
+                      colApps.map((app) => (
+                        <Card
+                          key={app.id}
+                          className="shadow-none border border-border bg-card hover:border-copper/60 hover:shadow-xs transition-all p-3 space-y-2.5 rounded-xs group"
+                        >
+                          {/* Header */}
+                          <div className="flex items-start justify-between gap-1.5">
+                            <div className="min-w-0 flex-1">
+                              <span className="font-semibold text-xs text-foreground block hover:text-copper transition-colors truncate">
+                                {app.candidateName}
+                              </span>
+                              <span className="text-[10px] text-muted-foreground truncate block">
+                                {app.jobTitle}
+                              </span>
+                            </div>
+                            <Badge
+                              variant="outline"
+                              className={cn(
+                                "text-[9px] px-1.5 py-0 shrink-0 font-medium",
+                                (app.fitScore || 0) >= 85
+                                  ? "border-emerald-500/30 text-emerald-600 bg-emerald-500/10"
+                                  : (app.fitScore || 0) >= 70
+                                  ? "border-copper/30 text-copper bg-copper/10"
+                                  : "border-border text-muted-foreground bg-muted/40",
+                              )}
                             >
-                              {KANBAN_STAGES.map((s) => (
-                                <option key={s.id} value={s.id}>
-                                  Move: {s.name}
-                                </option>
-                              ))}
-                            </select>
+                              {app.fitScore}% Fit
+                            </Badge>
                           </div>
-                        </RoleGuard>
 
-                        {/* Quick Actions Bar */}
-                        <div className="flex items-center justify-between text-[10px] text-muted-foreground pt-1 border-t border-border/40">
-                          <RoleGuard permission="canScheduleInterviews">
-                            <Link
-                              href={`/interviews/schedule?candidateId=${app.candidateId}&applicationId=${app.id}`}
-                              className="hover:text-copper flex items-center gap-0.5"
-                              title="Schedule Interview"
-                            >
-                              <Calendar className="size-3 text-copper" />
-                              <span>Interview</span>
-                            </Link>
-                          </RoleGuard>
+                          {/* Experience / Info */}
+                          <div className="text-[11px] text-muted-foreground space-y-0.5">
+                            <div className="truncate text-foreground font-medium">
+                              {app.currentDesignation || "Software Engineer"}
+                            </div>
+                            <div className="text-[10px] flex items-center justify-between text-muted-foreground">
+                              <span className="flex items-center gap-1">
+                                <Clock className="size-3 text-muted-foreground/70" />
+                                <span>{new Date(app.createdAt).toLocaleDateString()}</span>
+                              </span>
+                              {app.source && (
+                                <span className="text-[10px] capitalize text-muted-foreground/80 truncate max-w-[100px]">
+                                  {app.source}
+                                </span>
+                              )}
+                            </div>
+                          </div>
 
-                          <RoleGuard permission="canCreateOffers">
-                            <Link
-                              href={`/offers/new?candidateId=${app.candidateId}&applicationId=${app.id}`}
-                              className="hover:text-copper flex items-center gap-0.5"
-                              title="Generate Offer"
-                            >
-                              <Gift className="size-3 text-sage-deep" />
-                              <span>Offer</span>
-                            </Link>
-                          </RoleGuard>
-
+                          {/* Quick Stage Mover Dropdown */}
                           <RoleGuard permission="canAdvancePipeline">
-                            <button
-                              onClick={() => setRejectingAppId(app.id)}
-                              className="hover:text-destructive flex items-center gap-0.5"
-                              title="Reject Candidate"
-                            >
-                              <XCircle className="size-3 text-destructive/70" />
-                              <span>Reject</span>
-                            </button>
+                            <div className="pt-2 border-t border-border/60">
+                              <select
+                                value={app.stage}
+                                onChange={(e) => handleStageChange(app.id, e.target.value as any)}
+                                className="h-6.5 text-[11px] rounded-xs border border-border bg-muted/40 hover:bg-muted px-1.5 text-foreground focus:outline-none focus:ring-1 focus:ring-copper w-full font-medium transition-colors cursor-pointer"
+                              >
+                                {KANBAN_STAGES.map((s) => (
+                                  <option key={s.id} value={s.id}>
+                                    Move: {s.name}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
                           </RoleGuard>
-                        </div>
-                      </Card>
-                    ))
-                  )}
+
+                          {/* Quick Actions Bar */}
+                          <div className="flex items-center justify-between text-[10px] text-muted-foreground pt-1 border-t border-border/40">
+                            <RoleGuard permission="canScheduleInterviews">
+                              <Link
+                                href={`/interviews/schedule?candidateId=${app.candidateId}&applicationId=${app.id}`}
+                                className="hover:text-copper flex items-center gap-0.5 py-0.5 px-1 rounded-xs hover:bg-muted/60 transition-colors"
+                                title="Schedule Interview"
+                              >
+                                <Calendar className="size-3 text-copper" />
+                                <span>Interview</span>
+                              </Link>
+                            </RoleGuard>
+
+                            <RoleGuard permission="canCreateOffers">
+                              <Link
+                                href={`/offers/new?candidateId=${app.candidateId}&applicationId=${app.id}`}
+                                className="hover:text-copper flex items-center gap-0.5 py-0.5 px-1 rounded-xs hover:bg-muted/60 transition-colors"
+                                title="Generate Offer"
+                              >
+                                <Gift className="size-3 text-sage-deep" />
+                                <span>Offer</span>
+                              </Link>
+                            </RoleGuard>
+
+                            <RoleGuard permission="canAdvancePipeline">
+                              <button
+                                type="button"
+                                onClick={() => setRejectingAppId(app.id)}
+                                className="hover:text-destructive flex items-center gap-0.5 py-0.5 px-1 rounded-xs hover:bg-destructive/10 transition-colors cursor-pointer"
+                                title="Reject Candidate"
+                              >
+                                <XCircle className="size-3 text-destructive/70" />
+                                <span>Reject</span>
+                              </button>
+                            </RoleGuard>
+                          </div>
+                        </Card>
+                      ))
+                    )}
+                  </div>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
       ) : (
         /* LIST VIEW */
