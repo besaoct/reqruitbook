@@ -336,7 +336,7 @@ function CommunicationsContent() {
               </CardHeader>
               <CardContent className="space-y-3 text-xs">
                 <div className="p-2.5 bg-muted/40 rounded-xs border border-border text-[11px] text-foreground space-y-1">
-                  <div className="text-muted-foreground font-sans text-[10px] uppercase font-semibold">
+                  <div className="text-muted-foreground text-[10px] uppercase font-semibold">
                     Subject Line Preview
                   </div>
                   <div className="truncate">{tpl.subject}</div>

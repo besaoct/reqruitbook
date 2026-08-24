@@ -41,8 +41,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" suppressHydrationWarning>
-      <body className={font.className} suppressHydrationWarning>
+    <html lang="en" className={font.variable} suppressHydrationWarning>
+      <body className={`${font.className} ${font.variable}`} suppressHydrationWarning>
         <NextTopLoader
           color="#CA7842"
           initialPosition={0.08}

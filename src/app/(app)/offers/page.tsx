@@ -444,7 +444,7 @@ function OffersContent() {
 
           {previewOffer && (
             <div className="space-y-4 py-2 text-xs">
-              <div className="p-4 bg-muted/30 rounded-xs border border-border space-y-3 font-serif">
+              <div className="p-4 bg-muted/30 rounded-xs border border-border space-y-3">
                 <div className="font-semibold text-sm text-foreground">
                   My Organisation — Official Offer of Employment
                 </div>
@@ -454,7 +454,7 @@ function OffersContent() {
                 <p className="text-muted-foreground leading-relaxed">
                   We are thrilled to offer you the position of <strong className="text-foreground">{previewOffer.designation}</strong> in our <strong className="text-foreground">{previewOffer.departmentName}</strong> team.
                 </p>
-                <div className="p-3 bg-card rounded-xs border border-border font-sans space-y-1.5 not-italic">
+                <div className="p-3 bg-card rounded-xs border border-border space-y-1.5">
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Annual Base Compensation:</span>
                     <span className="font-semibold text-foreground">${(previewOffer.baseSalary || 0).toLocaleString()} {previewOffer.currency}</span>
@@ -472,7 +472,7 @@ function OffersContent() {
                     <span className="text-foreground">{previewOffer.reportingManager || "Department Head"}</span>
                   </div>
                 </div>
-                <div className="font-sans space-y-1">
+                <div className="space-y-1">
                   <div className="font-semibold text-[11px] text-foreground">Benefits &amp; Provisions:</div>
                   <p className="text-muted-foreground text-[11px] leading-relaxed">
                     {previewOffer.benefitsSummary || "Comprehensive Health, Dental, Vision, 401(k) 4% Match, $3,000 Annual Learning Budget."}

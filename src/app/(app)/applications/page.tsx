@@ -345,7 +345,7 @@ function ApplicationsContent() {
           <div
             ref={scrollContainerRef}
             onScroll={checkScroll}
-            className="flex gap-3.5 overflow-x-auto pb-4 pt-1 scroll-smooth scrollbar-thin select-none"
+            className="flex gap-3.5 overflow-x-auto pb-4 pt-1 scroll-smooth no-scrollbar select-none"
           >
             {KANBAN_STAGES.map((col) => {
               const colApps = filteredApplications.filter((a) => a.stage === col.id);
@@ -365,7 +365,7 @@ function ApplicationsContent() {
                   </div>
 
                   {/* Candidate Cards */}
-                  <div className="space-y-2.5 flex-1 overflow-y-auto pr-0.5">
+                  <div className="space-y-2.5 flex-1 overflow-y-auto pr-0.5 no-scrollbar">
                     {colApps.length === 0 ? (
                       <div className="h-28 flex flex-col items-center justify-center text-[11px] text-muted-foreground border border-dashed border-border/60 rounded-xs bg-muted/10 gap-1">
                         <span>No candidates</span>

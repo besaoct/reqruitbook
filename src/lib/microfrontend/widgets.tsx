@@ -22,7 +22,7 @@ export function ReqruitBookEmbedContainer({
 }) {
   return (
     <ReqruitBookProvider config={{ ...config, isEmbedded: true }}>
-      <div className={`reqruitbook-embedded-widget font-sans antialiased text-foreground ${className}`}>
+      <div className={`reqruitbook-embedded-widget antialiased text-foreground ${className}`}>
         {children}
       </div>
     </ReqruitBookProvider>
