@@ -75,8 +75,9 @@ function ApplicationsContent() {
   const searchParams = useSearchParams();
   const rawJobId = searchParams.get("jobId");
   const rawStage = searchParams.get("stage");
+  const rawView = searchParams.get("view");
 
-  const [activeView, setActiveView] = useState<"kanban" | "list">("kanban");
+  const [activeView, setActiveView] = useState<"kanban" | "list">(rawView === "list" ? "list" : "kanban");
   const [selectedJobId, setSelectedJobId] = useState(rawJobId || "all");
   const [selectedStage, setSelectedStage] = useState(rawStage || "all");
   const [searchQuery, setSearchQuery] = useState("");
@@ -128,15 +129,14 @@ function ApplicationsContent() {
     });
   };
 
-  // Sync URL search params
+  // Sync URL search params whenever query changes
   useEffect(() => {
-    if (rawStage && rawStage !== selectedStage) {
-      setSelectedStage(rawStage);
+    setSelectedStage(rawStage || "all");
+    setSelectedJobId(rawJobId || "all");
+    if (rawView === "list" || rawView === "kanban") {
+      setActiveView(rawView);
     }
-    if (rawJobId && rawJobId !== selectedJobId) {
-      setSelectedJobId(rawJobId);
-    }
-  }, [rawStage, rawJobId]);
+  }, [rawStage, rawJobId, rawView]);
 
   // Auto-scroll Kanban to selected stage if stage is specified
   useEffect(() => {
@@ -234,6 +234,18 @@ function ApplicationsContent() {
     }
   };
 
+  const handleViewChange = (newView: "kanban" | "list") => {
+    setActiveView(newView);
+    const params = new URLSearchParams(window.location.search);
+    if (newView === "kanban") {
+      params.delete("view");
+    } else {
+      params.set("view", "list");
+    }
+    const query = params.toString();
+    router.push(`/applications${query ? `?${query}` : ""}`);
+  };
+
   const handleJobFilterChange = (jobId: string) => {
     setSelectedJobId(jobId);
     const params = new URLSearchParams(window.location.search);
@@ -242,7 +254,8 @@ function ApplicationsContent() {
     } else {
       params.set("jobId", jobId);
     }
-    router.push(`/applications?${params.toString()}`);
+    const query = params.toString();
+    router.push(`/applications${query ? `?${query}` : ""}`);
   };
 
   const handleStageFilterChange = (stage: string) => {
@@ -253,7 +266,8 @@ function ApplicationsContent() {
     } else {
       params.set("stage", stage);
     }
-    router.push(`/applications?${params.toString()}`);
+    const query = params.toString();
+    router.push(`/applications${query ? `?${query}` : ""}`);
   };
 
   const filteredApplications = applications.filter((app) => {
@@ -302,7 +316,7 @@ function ApplicationsContent() {
         <div className="flex items-center gap-4 border-b border-border w-fit">
           <button
             type="button"
-            onClick={() => setActiveView("kanban")}
+            onClick={() => handleViewChange("kanban")}
             className={cn(
               "text-xs py-2 px-1 font-medium transition-all border-b-2 -mb-px whitespace-nowrap cursor-pointer",
               activeView === "kanban"
@@ -314,7 +328,7 @@ function ApplicationsContent() {
           </button>
           <button
             type="button"
-            onClick={() => setActiveView("list")}
+            onClick={() => handleViewChange("list")}
             className={cn(
               "text-xs py-2 px-1 font-medium transition-all border-b-2 -mb-px whitespace-nowrap cursor-pointer",
               activeView === "list"

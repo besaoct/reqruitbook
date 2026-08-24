@@ -26,16 +26,36 @@ function isExactActive(
     return false;
   }
 
-  // If the target href has NO query parameters (e.g. "/jobs" -> "All Openings")
+  // If the target href has NO query parameters (e.g. "/applications" -> "All Applications", or "/jobs" -> "All Openings")
   if (!hrefQuery) {
-    // If the current URL has search parameters, don't mark "All" as active
-    if (searchParams && searchParams.toString().length > 0) {
-      return false;
+    if (!searchParams) return true;
+
+    // Check if any primary routing filter parameter is present in searchParams
+    const stage = searchParams.get("stage");
+    const status = searchParams.get("status");
+    const tab = searchParams.get("tab");
+
+    // For /applications: active if stage is absent or "all"
+    if (pathname === "/applications") {
+      return !stage || stage === "all";
     }
+    // For /jobs: active if status is absent or "all"
+    if (pathname === "/jobs") {
+      return !status || status === "all";
+    }
+    // For /settings: active if tab is absent or "profile"
+    if (pathname === "/settings") {
+      return !tab || tab === "profile";
+    }
+    // For /communications: active if tab is absent
+    if (pathname === "/communications") {
+      return !tab;
+    }
+
     return true;
   }
 
-  // If the target href HAS query parameters (e.g. "/jobs?status=open")
+  // If the target href HAS query parameters (e.g. "/applications?stage=screening")
   if (!searchParams) return false;
 
   const targetParams = new URLSearchParams(hrefQuery);
