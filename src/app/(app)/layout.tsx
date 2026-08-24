@@ -4,6 +4,7 @@ import { getCurrentUser } from "@/lib/auth/session";
 import { AuthProvider } from "@/components/auth/auth-context";
 import { getNavigationBadgeCounts } from "@/lib/actions/navigation";
 import { getDepartments } from "@/lib/actions/settings";
+import { getSystemNotifications } from "@/lib/actions/notifications";
 
 const ROLE_LABELS: Record<string, string> = {
   system_admin: "System Administrator",
@@ -18,10 +19,11 @@ export default async function AppLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const [currentUser, badges, dbDepts] = await Promise.all([
+  const [currentUser, badges, dbDepts, notifsData] = await Promise.all([
     getCurrentUser(),
     getNavigationBadgeCounts(),
     getDepartments(),
+    getSystemNotifications(),
   ]);
 
   const departments = [
@@ -47,12 +49,6 @@ export default async function AppLayout({
   // Pass dynamic role and permissions to filter navigation
   const navigation = getNavigation(badges, userRole, userPermissions);
 
-  const totalUnreadNotifs =
-    (badges.pendingFeedback || 0) +
-    (badges.screeningCount || 0) +
-    (badges.interviewsToday || 0) +
-    (badges.pendingOffers || 0);
-
   return (
     <AuthProvider user={currentUser}>
       <AppShell
@@ -61,7 +57,7 @@ export default async function AppLayout({
         user={user}
         departments={departments}
         activeDepartmentId="dept_all"
-        unreadCount={totalUnreadNotifs}
+        unreadCount={notifsData.unreadCount}
       >
         {children}
       </AppShell>
