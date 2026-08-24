@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, Suspense } from "react";
+import React, { useState, useEffect, useRef, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -41,6 +41,8 @@ import {
   UserPlus,
   Check,
   X,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import {
   Dialog,
@@ -347,6 +349,36 @@ function SettingsContent() {
   useEffect(() => {
     loadAll();
   }, []);
+
+  // Responsive Horizontal Tabs Scroll Controller
+  const tabsScrollRef = useRef<HTMLDivElement>(null);
+  const [canScrollTabsLeft, setCanScrollTabsLeft] = useState(false);
+  const [canScrollTabsRight, setCanScrollTabsRight] = useState(false);
+
+  const checkTabsScroll = () => {
+    if (!tabsScrollRef.current) return;
+    const { scrollLeft, scrollWidth, clientWidth } = tabsScrollRef.current;
+    setCanScrollTabsLeft(scrollLeft > 4);
+    setCanScrollTabsRight(scrollLeft < scrollWidth - clientWidth - 4);
+  };
+
+  useEffect(() => {
+    const el = tabsScrollRef.current;
+    if (!el) return;
+    checkTabsScroll();
+    el.addEventListener("scroll", checkTabsScroll, { passive: true });
+    window.addEventListener("resize", checkTabsScroll);
+    return () => {
+      el.removeEventListener("scroll", checkTabsScroll);
+      window.removeEventListener("resize", checkTabsScroll);
+    };
+  }, [rolesList, departments, locations, workModesList, employmentTypesList, experienceLevelsList, educationLevelsList]);
+
+  const scrollTabs = (direction: "left" | "right") => {
+    if (!tabsScrollRef.current) return;
+    const amount = direction === "left" ? -280 : 280;
+    tabsScrollRef.current.scrollBy({ left: amount, behavior: "smooth" });
+  };
 
   const handleTabChange = (value: string) => {
     setActiveTab(value);
@@ -980,70 +1012,103 @@ export function HostHrmRecruitmentView() {
   };
 
   return (
-    <div className="page max-w-full">
+    <div className="page w-full max-w-full min-w-0 overflow-hidden">
       <PageHeader
         title="System &amp; Access Control Settings"
         description="Manage company details, dynamic database-persisted RBAC roles, live permission matrices, departments, and HRM microfrontend bridges."
       />
 
-      <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-4">
-        <TabsList className="mb-2">
-          {canViewCompany && (
-            <TabsTrigger value="company">
-              Company &amp; Branding
-            </TabsTrigger>
+      <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-4 w-full max-w-full min-w-0">
+        {/* Responsive Horizontal Scroll Tabs Container */}
+        <div className="relative w-full max-w-full group">
+          {/* Left Floating Chevron */}
+          {canScrollTabsLeft && (
+            <button
+              type="button"
+              onClick={() => scrollTabs("left")}
+              aria-label="Scroll tabs left"
+              className="absolute -left-2 top-1/2 -translate-y-1/2 z-10 size-6 rounded-full bg-background/95 border border-border shadow-md flex items-center justify-center text-foreground hover:text-copper hover:border-copper transition-all cursor-pointer backdrop-blur-xs"
+            >
+              <ChevronLeft className="size-3.5" />
+            </button>
           )}
-          {canViewRBAC && (
-            <TabsTrigger value="rbac" className="flex items-center gap-1.5">
-              <ShieldCheck className="size-3.5 text-copper" />
-              <span>Roles &amp; Permissions (RBAC)</span>
-            </TabsTrigger>
+
+          {/* Scrollable Tabs List Viewport */}
+          <div
+            ref={tabsScrollRef}
+            className="w-full max-w-full overflow-x-auto no-scrollbar scroll-smooth border-b border-border"
+          >
+            <TabsList className="mb-0 border-b-0 inline-flex w-max gap-4 p-0 pb-0.5">
+              {canViewCompany && (
+                <TabsTrigger value="company" className="shrink-0 whitespace-nowrap">
+                  Company &amp; Branding
+                </TabsTrigger>
+              )}
+              {canViewRBAC && (
+                <TabsTrigger value="rbac" className="flex items-center gap-1.5 shrink-0 whitespace-nowrap">
+                  <ShieldCheck className="size-3.5 text-copper" />
+                  <span>Roles &amp; Permissions (RBAC)</span>
+                </TabsTrigger>
+              )}
+              {canViewUsers && (
+                <TabsTrigger value="users" className="shrink-0 whitespace-nowrap">
+                  Users &amp; Directory ({usersList.length})
+                </TabsTrigger>
+              )}
+              {canViewDepts && (
+                <TabsTrigger value="departments" className="shrink-0 whitespace-nowrap">
+                  Departments ({departments.length})
+                </TabsTrigger>
+              )}
+              {canViewLocations && (
+                <TabsTrigger value="locations" className="shrink-0 whitespace-nowrap">
+                  Locations ({locations.length})
+                </TabsTrigger>
+              )}
+              {canViewWorkModes && (
+                <TabsTrigger value="work-modes" className="shrink-0 whitespace-nowrap">
+                  Work Modes ({workModesList.length})
+                </TabsTrigger>
+              )}
+              {canViewEmpTypes && (
+                <TabsTrigger value="employment-types" className="shrink-0 whitespace-nowrap">
+                  Employment Types ({employmentTypesList.length})
+                </TabsTrigger>
+              )}
+              {canViewExpLevels && (
+                <TabsTrigger value="experience-levels" className="shrink-0 whitespace-nowrap">
+                  Experience Levels ({experienceLevelsList.length})
+                </TabsTrigger>
+              )}
+              {canViewEduLevels && (
+                <TabsTrigger value="education-levels" className="shrink-0 whitespace-nowrap">
+                  Education Requirements ({educationLevelsList.length})
+                </TabsTrigger>
+              )}
+              {canViewSDK && (
+                <TabsTrigger value="integrations" className="shrink-0 whitespace-nowrap">
+                  Microfrontend SDK
+                </TabsTrigger>
+              )}
+            </TabsList>
+          </div>
+
+          {/* Right Floating Chevron */}
+          {canScrollTabsRight && (
+            <button
+              type="button"
+              onClick={() => scrollTabs("right")}
+              aria-label="Scroll tabs right"
+              className="absolute -right-2 top-1/2 -translate-y-1/2 z-10 size-6 rounded-full bg-background/95 border border-border shadow-md flex items-center justify-center text-foreground hover:text-copper hover:border-copper transition-all cursor-pointer backdrop-blur-xs"
+            >
+              <ChevronRight className="size-3.5" />
+            </button>
           )}
-          {canViewUsers && (
-            <TabsTrigger value="users">
-              Users &amp; Directory ({usersList.length})
-            </TabsTrigger>
-          )}
-          {canViewDepts && (
-            <TabsTrigger value="departments">
-              Departments ({departments.length})
-            </TabsTrigger>
-          )}
-          {canViewLocations && (
-            <TabsTrigger value="locations">
-              Locations ({locations.length})
-            </TabsTrigger>
-          )}
-          {canViewWorkModes && (
-            <TabsTrigger value="work-modes">
-              Work Modes ({workModesList.length})
-            </TabsTrigger>
-          )}
-          {canViewEmpTypes && (
-            <TabsTrigger value="employment-types">
-              Employment Types ({employmentTypesList.length})
-            </TabsTrigger>
-          )}
-          {canViewExpLevels && (
-            <TabsTrigger value="experience-levels">
-              Experience Levels ({experienceLevelsList.length})
-            </TabsTrigger>
-          )}
-          {canViewEduLevels && (
-            <TabsTrigger value="education-levels">
-              Education Requirements ({educationLevelsList.length})
-            </TabsTrigger>
-          )}
-          {canViewSDK && (
-            <TabsTrigger value="integrations">
-              Microfrontend SDK
-            </TabsTrigger>
-          )}
-        </TabsList>
+        </div>
 
         {/* 1. COMPANY & BRANDING */}
         {canViewCompany && (
-          <TabsContent value="company" className="space-y-4">
+          <TabsContent value="company" className="space-y-4 w-full max-w-full min-w-0">
             <Card className="shadow-none">
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm font-semibold">Organization Profile</CardTitle>
@@ -1097,7 +1162,7 @@ export function HostHrmRecruitmentView() {
         )}
 
         {/* 2. DYNAMIC RBAC ROLES & PERMISSIONS */}
-        <TabsContent value="rbac" className="space-y-6">
+        <TabsContent value="rbac" className="space-y-6 w-full max-w-full min-w-0">
           {!canViewRBAC ? (
             <AccessDenied
               errorCode="403"
@@ -1474,7 +1539,7 @@ export function HostHrmRecruitmentView() {
 
         {/* 4. DEPARTMENTS */}
         {canViewDepts && (
-          <TabsContent value="departments" className="space-y-4">
+          <TabsContent value="departments" className="space-y-4 w-full max-w-full min-w-0">
             <div className="flex items-center justify-between">
               <div className="text-xs text-muted-foreground">
                 Define functional departments for requisitions and workforce allocation.
@@ -1546,7 +1611,7 @@ export function HostHrmRecruitmentView() {
 
         {/* 5. LOCATIONS */}
         {canViewLocations && (
-          <TabsContent value="locations" className="space-y-4">
+          <TabsContent value="locations" className="space-y-4 w-full max-w-full min-w-0">
             <div className="flex items-center justify-between">
               <div className="text-xs text-muted-foreground">
                 Configure global office locations and hiring hubs.
@@ -1623,7 +1688,7 @@ export function HostHrmRecruitmentView() {
 
         {/* 6. WORK MODES */}
         {canViewWorkModes && (
-          <TabsContent value="work-modes" className="space-y-4">
+          <TabsContent value="work-modes" className="space-y-4 w-full max-w-full min-w-0">
             <div className="flex items-center justify-between">
               <div className="text-xs text-muted-foreground">
                 Define dynamic work arrangement options (e.g. Hybrid, Fully Remote, On-Site) for job requisitions.
@@ -1697,7 +1762,7 @@ export function HostHrmRecruitmentView() {
 
         {/* 7. EMPLOYMENT TYPES */}
         {canViewEmpTypes && (
-          <TabsContent value="employment-types" className="space-y-4">
+          <TabsContent value="employment-types" className="space-y-4 w-full max-w-full min-w-0">
             <div className="flex items-center justify-between">
               <div className="text-xs text-muted-foreground">
                 Manage contract and employment classifications (e.g. Full-time Permanent, Contract, Internship) available during job creation.
@@ -1771,7 +1836,7 @@ export function HostHrmRecruitmentView() {
 
         {/* 7b. EXPERIENCE LEVELS */}
         {canViewExpLevels && (
-          <TabsContent value="experience-levels" className="space-y-4">
+          <TabsContent value="experience-levels" className="space-y-4 w-full max-w-full min-w-0">
             <div className="flex items-center justify-between">
               <div className="text-xs text-muted-foreground">
                 Configure seniority tiers and minimum experience year ranges used in requisitions and candidate scorecards.
@@ -1851,7 +1916,7 @@ export function HostHrmRecruitmentView() {
 
         {/* 7c. EDUCATION REQUIREMENTS */}
         {canViewEduLevels && (
-          <TabsContent value="education-levels" className="space-y-4">
+          <TabsContent value="education-levels" className="space-y-4 w-full max-w-full min-w-0">
             <div className="flex items-center justify-between">
               <div className="text-xs text-muted-foreground">
                 Define educational degrees and qualification classifications for job openings.
@@ -1925,7 +1990,7 @@ export function HostHrmRecruitmentView() {
 
         {/* 8. INTEGRATIONS / MICROFRONTEND */}
         {canViewSDK && (
-          <TabsContent value="integrations" className="space-y-4">
+          <TabsContent value="integrations" className="space-y-4 w-full max-w-full min-w-0">
             <Card className="shadow-none">
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
