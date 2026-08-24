@@ -6,6 +6,13 @@ import { eq, and } from "drizzle-orm";
 import { verifyPassword } from "@/lib/auth/password";
 import { createSession } from "@/lib/auth/session";
 import { DEFAULT_ROLE_PERMISSIONS } from "@/lib/auth/rbac";
+import {
+  checkRateLimit,
+  getClientIp,
+  getRateLimitHeaders,
+  RATE_LIMIT_CONFIGS,
+} from "@/lib/security/rate-limiter";
+import { recordAuditLog } from "@/lib/security/audit";
 
 const loginSchema = z.object({
   email: z.string().email("Please provide a valid corporate email address"),
@@ -17,6 +24,34 @@ const LOCKOUT_MINUTES = 15;
 
 export async function POST(req: NextRequest) {
   try {
+    const clientIp = getClientIp(req);
+
+    // 1. Sliding-window rate limit check for login (Max 5 attempts/min per IP)
+    const rateLimit = checkRateLimit(
+      `auth_login:${clientIp}`,
+      RATE_LIMIT_CONFIGS.AUTH.limit,
+      RATE_LIMIT_CONFIGS.AUTH.windowMs,
+    );
+
+    if (!rateLimit.allowed) {
+      await recordAuditLog({
+        action: "auth.rate_limit_exceeded",
+        entityType: "ip_address",
+        entityId: clientIp,
+        metadata: { clientIp, retryAfter: rateLimit.retryAfter },
+      });
+
+      return NextResponse.json(
+        {
+          error: `Too many authentication attempts. Please retry in ${rateLimit.retryAfter} second(s).`,
+        },
+        {
+          status: 429,
+          headers: getRateLimitHeaders(rateLimit),
+        },
+      );
+    }
+
     const body = await req.json();
     const parseResult = loginSchema.safeParse(body);
 
@@ -26,7 +61,10 @@ export async function POST(req: NextRequest) {
           error: "Validation failed",
           details: parseResult.error.flatten().fieldErrors,
         },
-        { status: 400 },
+        {
+          status: 400,
+          headers: getRateLimitHeaders(rateLimit),
+        },
       );
     }
 
@@ -59,11 +97,24 @@ export async function POST(req: NextRequest) {
       const remainingMinutes = Math.ceil(
         (foundUser.user.lockedUntil.getTime() - now.getTime()) / 60000,
       );
+
+      await recordAuditLog({
+        actorId: foundUser.user.id,
+        orgId: foundUser.user.orgId,
+        action: "auth.attempt_locked_account",
+        entityType: "user",
+        entityId: foundUser.user.id,
+        metadata: { email: normalizedEmail, clientIp, remainingMinutes },
+      });
+
       return NextResponse.json(
         {
           error: `Account temporarily locked due to consecutive failed attempts. Please try again in ${remainingMinutes} minute(s).`,
         },
-        { status: 429 },
+        {
+          status: 429,
+          headers: getRateLimitHeaders(rateLimit),
+        },
       );
     }
 
@@ -87,12 +138,50 @@ export async function POST(req: NextRequest) {
               : null,
           })
           .where(eq(users.id, foundUser.user.id));
+
+        if (willLock) {
+          await recordAuditLog({
+            actorId: foundUser.user.id,
+            orgId: foundUser.user.orgId,
+            action: "auth.account_locked",
+            entityType: "user",
+            entityId: foundUser.user.id,
+            metadata: {
+              email: normalizedEmail,
+              clientIp,
+              lockoutDurationMinutes: LOCKOUT_MINUTES,
+            },
+          });
+        } else {
+          await recordAuditLog({
+            actorId: foundUser.user.id,
+            orgId: foundUser.user.orgId,
+            action: "auth.login_failed",
+            entityType: "user",
+            entityId: foundUser.user.id,
+            metadata: {
+              email: normalizedEmail,
+              clientIp,
+              consecutiveFailures: nextAttempts,
+            },
+          });
+        }
+      } else {
+        await recordAuditLog({
+          action: "auth.unknown_user_attempt",
+          entityType: "user",
+          entityId: normalizedEmail,
+          metadata: { email: normalizedEmail, clientIp },
+        });
       }
 
       // Generic authentication error to prevent email harvesting
       return NextResponse.json(
         { error: "Invalid email or password." },
-        { status: 401 },
+        {
+          status: 401,
+          headers: getRateLimitHeaders(rateLimit),
+        },
       );
     }
 
@@ -107,16 +196,22 @@ export async function POST(req: NextRequest) {
       .where(eq(users.id, foundUser.user.id));
 
     // Extract client metadata
-    const ipAddress =
-      req.headers.get("x-forwarded-for")?.split(",")[0].trim() ||
-      req.headers.get("x-real-ip") ||
-      "127.0.0.1";
     const userAgent = req.headers.get("user-agent") || undefined;
 
     // Create session and set HttpOnly cookie
     await createSession(foundUser.user.id, {
-      ipAddress,
+      ipAddress: clientIp,
       userAgent,
+    });
+
+    // Record audit log for successful login
+    await recordAuditLog({
+      actorId: foundUser.user.id,
+      orgId: foundUser.user.orgId,
+      action: "auth.login_success",
+      entityType: "user",
+      entityId: foundUser.user.id,
+      metadata: { email: normalizedEmail, clientIp, userAgent },
     });
 
     // Resolve dynamic permissions
@@ -131,19 +226,24 @@ export async function POST(req: NextRequest) {
       dynamicPermissions = DEFAULT_ROLE_PERMISSIONS.system_admin as string[];
     }
 
-    return NextResponse.json({
-      success: true,
-      user: {
-        id: foundUser.user.id,
-        name: foundUser.user.name,
-        email: foundUser.user.email,
-        role: foundUser.user.role,
-        permissions: dynamicPermissions,
-        departmentId: foundUser.user.departmentId,
-        avatarUrl: foundUser.user.avatarUrl,
-        organizationName: foundUser.org.name,
+    return NextResponse.json(
+      {
+        success: true,
+        user: {
+          id: foundUser.user.id,
+          name: foundUser.user.name,
+          email: foundUser.user.email,
+          role: foundUser.user.role,
+          permissions: dynamicPermissions,
+          departmentId: foundUser.user.departmentId,
+          avatarUrl: foundUser.user.avatarUrl,
+          organizationName: foundUser.org.name,
+        },
       },
-    });
+      {
+        headers: getRateLimitHeaders(rateLimit),
+      },
+    );
   } catch (err) {
     console.error("Login authentication error:", err);
     return NextResponse.json(

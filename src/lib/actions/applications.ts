@@ -6,6 +6,7 @@ import { jobApplications, candidates, jobOpenings, departments } from "@/db/sche
 import { eq, desc, and } from "drizzle-orm";
 import { getCurrentUser } from "@/lib/auth/session";
 import { assertPermission } from "@/lib/auth/rbac";
+import { recordAuditLog } from "@/lib/security/audit";
 
 export type ApplicationStage =
   | "applied"
@@ -102,6 +103,14 @@ export async function updateApplicationStage(
     .set(updateData)
     .where(eq(jobApplications.id, applicationId));
 
+  await recordAuditLog({
+    actorId: user.id,
+    action: "ats.stage_changed",
+    entityType: "application",
+    entityId: applicationId,
+    metadata: { newStage, updatedBy: user.name, role: user.role },
+  });
+
   revalidatePath("/applications");
   revalidatePath("/dashboard");
   revalidatePath("/candidates");
@@ -125,6 +134,14 @@ export async function rejectApplication(
       updatedAt: new Date(),
     })
     .where(eq(jobApplications.id, applicationId));
+
+  await recordAuditLog({
+    actorId: user.id,
+    action: "ats.application_rejected",
+    entityType: "application",
+    entityId: applicationId,
+    metadata: { rejectedReason, rejectedBy: user.name },
+  });
 
   revalidatePath("/applications");
   revalidatePath("/dashboard");
@@ -249,6 +266,18 @@ export async function submitApplicationFromPortal(data: {
     answers: data.answers || {},
     createdAt: new Date(),
     updatedAt: new Date(),
+  });
+
+  await recordAuditLog({
+    action: "ats.portal_application_received",
+    entityType: "application",
+    entityId: appId,
+    metadata: {
+      candidateName: data.fullName,
+      candidateEmail: data.email,
+      jobId: data.jobId,
+      hasResume: !!data.resumeUrl,
+    },
   });
 
   revalidatePath("/applications");

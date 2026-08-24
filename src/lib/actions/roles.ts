@@ -6,6 +6,7 @@ import { roles, users } from "@/db/schema";
 import { eq, and, desc, asc } from "drizzle-orm";
 import { getCurrentUser } from "@/lib/auth/session";
 import { assertPermission, type Permission, ALL_PERMISSIONS } from "@/lib/auth/rbac";
+import { recordAuditLog } from "@/lib/security/audit";
 
 export interface RoleWithUsers {
   id: string;
@@ -132,6 +133,14 @@ export async function createRole(data: {
     updatedAt: new Date(),
   });
 
+  await recordAuditLog({
+    actorId: currentUser.id,
+    action: "rbac.role_created",
+    entityType: "role",
+    entityId: roleId,
+    metadata: { name: data.name, slug, permissions: data.permissions },
+  });
+
   revalidatePath("/settings");
   return { success: true, id: roleId, slug };
 }
@@ -171,6 +180,14 @@ export async function updateRole(
   if (data.permissions !== undefined) updatePayload.permissions = data.permissions;
 
   await db.update(roles).set(updatePayload).where(eq(roles.id, id));
+
+  await recordAuditLog({
+    actorId: currentUser.id,
+    action: "rbac.role_updated",
+    entityType: "role",
+    entityId: id,
+    metadata: { roleName: existing[0].name, updates: data },
+  });
 
   revalidatePath("/settings");
   return { success: true };
@@ -216,6 +233,14 @@ export async function toggleRolePermission(
     })
     .where(eq(roles.id, roleId));
 
+  await recordAuditLog({
+    actorId: currentUser.id,
+    action: granted ? "rbac.permission_granted" : "rbac.permission_revoked",
+    entityType: "role",
+    entityId: roleId,
+    metadata: { roleName: roleList[0].name, permission: permissionKey, granted },
+  });
+
   revalidatePath("/settings");
   return { success: true, permissions: updatedArray };
 }
@@ -250,6 +275,14 @@ export async function deleteRole(id: string) {
   }
 
   await db.delete(roles).where(eq(roles.id, id));
+
+  await recordAuditLog({
+    actorId: currentUser.id,
+    action: "rbac.role_deleted",
+    entityType: "role",
+    entityId: id,
+    metadata: { roleName: roleList[0].name, slug: roleList[0].slug },
+  });
 
   revalidatePath("/settings");
   return { success: true };

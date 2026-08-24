@@ -2,16 +2,51 @@ import { NextRequest, NextResponse } from "next/server";
 import { writeFile, mkdir } from "fs/promises";
 import { join } from "path";
 import { existsSync } from "fs";
+import {
+  checkRateLimit,
+  getClientIp,
+  getRateLimitHeaders,
+  RATE_LIMIT_CONFIGS,
+} from "@/lib/security/rate-limiter";
+import { recordAuditLog } from "@/lib/security/audit";
 
 export async function POST(req: NextRequest) {
   try {
+    const clientIp = getClientIp(req);
+
+    // 1. Sliding-window rate limit for file uploads (10 uploads / min per IP)
+    const rateLimit = checkRateLimit(
+      `upload:${clientIp}`,
+      RATE_LIMIT_CONFIGS.UPLOAD.limit,
+      RATE_LIMIT_CONFIGS.UPLOAD.windowMs,
+    );
+
+    if (!rateLimit.allowed) {
+      await recordAuditLog({
+        action: "upload.rate_limit_exceeded",
+        entityType: "ip_address",
+        entityId: clientIp,
+        metadata: { clientIp, retryAfter: rateLimit.retryAfter },
+      });
+
+      return NextResponse.json(
+        {
+          error: `Upload rate limit exceeded. Please wait ${rateLimit.retryAfter} second(s) before uploading again.`,
+        },
+        {
+          status: 429,
+          headers: getRateLimitHeaders(rateLimit),
+        },
+      );
+    }
+
     const formData = await req.formData();
     const file = formData.get("file") as File | null;
 
     if (!file) {
       return NextResponse.json(
         { error: "No file provided in request." },
-        { status: 400 },
+        { status: 400, headers: getRateLimitHeaders(rateLimit) },
       );
     }
 
@@ -20,7 +55,7 @@ export async function POST(req: NextRequest) {
     if (file.size > MAX_SIZE) {
       return NextResponse.json(
         { error: "File size exceeds maximum allowed limit of 5 MB." },
-        { status: 400 },
+        { status: 400, headers: getRateLimitHeaders(rateLimit) },
       );
     }
 
@@ -32,7 +67,7 @@ export async function POST(req: NextRequest) {
     if (!allowedExtensions.includes(ext)) {
       return NextResponse.json(
         { error: "Invalid file format. Only PDF, DOC, and DOCX files are supported." },
-        { status: 400 },
+        { status: 400, headers: getRateLimitHeaders(rateLimit) },
       );
     }
 
@@ -55,12 +90,29 @@ export async function POST(req: NextRequest) {
 
     const publicUrl = `/uploads/resumes/${uniqueFileName}`;
 
-    return NextResponse.json({
-      success: true,
-      fileUrl: publicUrl,
-      fileName: originalName,
-      fileSize: file.size,
+    await recordAuditLog({
+      action: "upload.file_created",
+      entityType: "document",
+      entityId: uniqueFileName,
+      metadata: {
+        originalName,
+        fileSize: file.size,
+        mimeType: file.type || ext,
+        clientIp,
+      },
     });
+
+    return NextResponse.json(
+      {
+        success: true,
+        fileUrl: publicUrl,
+        fileName: originalName,
+        fileSize: file.size,
+      },
+      {
+        headers: getRateLimitHeaders(rateLimit),
+      },
+    );
   } catch (error: any) {
     console.error("Upload error:", error);
     return NextResponse.json(

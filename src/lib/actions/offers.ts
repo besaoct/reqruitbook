@@ -6,6 +6,7 @@ import { offers, candidates, jobApplications, jobOpenings, auditLogs } from "@/d
 import { eq, desc, and } from "drizzle-orm";
 import { getCurrentUser } from "@/lib/auth/session";
 import { assertPermission } from "@/lib/auth/rbac";
+import { recordAuditLog } from "@/lib/security/audit";
 
 export async function getOffers(params?: {
   status?: string;
@@ -100,6 +101,20 @@ export async function createOffer(data: {
     .set({ stage: "offer", updatedAt: new Date() })
     .where(eq(jobApplications.id, data.applicationId));
 
+  await recordAuditLog({
+    actorId: user.id,
+    action: "offer.created",
+    entityType: "offer",
+    entityId: newId,
+    metadata: {
+      applicationId: data.applicationId,
+      candidateId: data.candidateId,
+      designation: data.designation,
+      baseSalary: data.baseSalary,
+      currency: data.currency || "USD",
+    },
+  });
+
   revalidatePath("/offers");
   revalidatePath("/applications");
   revalidatePath("/dashboard");
@@ -122,6 +137,14 @@ export async function updateOfferStatus(
     .update(offers)
     .set({ status, updatedAt: new Date() })
     .where(eq(offers.id, id));
+
+  await recordAuditLog({
+    actorId: user.id,
+    action: `offer.status_${status}`,
+    entityType: "offer",
+    entityId: id,
+    metadata: { newStatus: status, updatedBy: user.name },
+  });
 
   // If accepted, update application to 'selected' or 'offer'
   if (status === "accepted") {
