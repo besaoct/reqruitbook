@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import {
   Popover,
@@ -25,13 +25,20 @@ import {
   ChevronRight,
   Filter,
 } from "lucide-react";
-import { getSystemNotifications, type SystemNotification } from "@/lib/actions/notifications";
+import {
+  getSystemNotifications,
+  markNotificationAsRead,
+  markAllNotificationsAsRead,
+  type SystemNotification,
+} from "@/lib/actions/notifications";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
 interface NotificationPopoverProps {
   initialUnreadCount?: number;
 }
+
+const LOCAL_STORAGE_KEY = "reqruitbook_read_notifs";
 
 export function NotificationPopover({ initialUnreadCount = 0 }: NotificationPopoverProps) {
   const [open, setOpen] = useState(false);
@@ -40,22 +47,49 @@ export function NotificationPopover({ initialUnreadCount = 0 }: NotificationPopo
   const [unreadCount, setUnreadCount] = useState(initialUnreadCount);
   const [activeFilter, setActiveFilter] = useState<"all" | "unread" | "application" | "interview" | "offer">("all");
 
-  const loadNotifications = async () => {
+  const getLocalReadSet = (): Set<string> => {
+    try {
+      const raw = localStorage.getItem(LOCAL_STORAGE_KEY);
+      if (!raw) return new Set();
+      return new Set(JSON.parse(raw));
+    } catch {
+      return new Set();
+    }
+  };
+
+  const saveLocalReadSet = (set: Set<string>) => {
+    try {
+      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(Array.from(set).slice(-300)));
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const loadNotifications = useCallback(async () => {
     setLoading(true);
     try {
       const res = await getSystemNotifications();
-      setNotifications(res.notifications);
-      setUnreadCount(res.unreadCount);
+      const localReadSet = getLocalReadSet();
+
+      // Merge server read status with client localStorage cache
+      const merged = res.notifications.map((n) => ({
+        ...n,
+        read: n.read || localReadSet.has(n.id),
+      }));
+
+      setNotifications(merged);
+      const computedUnread = merged.filter((n) => !n.read).length;
+      setUnreadCount(computedUnread);
     } catch (err) {
       console.error("Failed to load notifications:", err);
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     loadNotifications();
-  }, []);
+  }, [loadNotifications]);
 
   const handleOpenChange = (newOpen: boolean) => {
     setOpen(newOpen);
@@ -64,20 +98,45 @@ export function NotificationPopover({ initialUnreadCount = 0 }: NotificationPopo
     }
   };
 
-  const handleMarkAsRead = (id: string, e: React.MouseEvent) => {
+  const handleMarkAsRead = async (id: string, e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
+
+    // 1. Optimistic state update
     setNotifications((prev) =>
       prev.map((n) => (n.id === id ? { ...n, read: true } : n))
     );
     setUnreadCount((prev) => Math.max(0, prev - 1));
+
+    // 2. Cache in localStorage
+    const localSet = getLocalReadSet();
+    localSet.add(id);
+    saveLocalReadSet(localSet);
+
     toast.success("Notification marked as read");
+
+    // 3. Persist to PostgreSQL via Server Action
+    await markNotificationAsRead(id);
   };
 
-  const handleMarkAllAsRead = () => {
+  const handleMarkAllAsRead = async () => {
+    const unreadIds = notifications.filter((n) => !n.read).map((n) => n.id);
+
+    // 1. Optimistic state update
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
     setUnreadCount(0);
+
+    // 2. Cache in localStorage
+    const localSet = getLocalReadSet();
+    notifications.forEach((n) => localSet.add(n.id));
+    saveLocalReadSet(localSet);
+
     toast.success("All notifications marked as read");
+
+    // 3. Persist to PostgreSQL via Server Action
+    if (unreadIds.length > 0) {
+      await markAllNotificationsAsRead(unreadIds);
+    }
   };
 
   const filteredList = notifications.filter((n) => {
@@ -245,7 +304,7 @@ export function NotificationPopover({ initialUnreadCount = 0 }: NotificationPopo
                 key={notif.id}
                 className={cn(
                   "p-3 transition-colors flex items-start gap-2.5 group relative hover:bg-muted/50",
-                  !notif.read ? "bg-copper/5 font-medium" : "bg-card",
+                  !notif.read ? "bg-copper/5 font-medium" : "bg-card opacity-80",
                 )}
               >
                 {/* Icon Badge */}
@@ -271,7 +330,10 @@ export function NotificationPopover({ initialUnreadCount = 0 }: NotificationPopo
                   <div className="flex items-center justify-between pt-1">
                     <Link
                       href={notif.href}
-                      onClick={() => setOpen(false)}
+                      onClick={(e) => {
+                        setOpen(false);
+                        handleMarkAsRead(notif.id, e);
+                      }}
                       className="inline-flex items-center gap-1 text-[10px] font-semibold text-copper hover:underline"
                     >
                       <span>{notif.actionLabel}</span>
